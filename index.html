@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#edece7">
+<meta name="description" content="Every strike of a full-drum vibration campaign: 424 strikes over 101 cells of a 50 mm TPU membrane, measured with a low-cost reflective optical sensor. Filter, slice and download the data.">
+<title>Drum map explorer &mdash; vibrations of a circular membrane</title>
+<style>
+/* ------------------------------------------------------------------ theme
+   The drumlab web idiom (the bench UI this campaign was run from): paper
+   background, mono for every number, strike-red / laser-purple accents,
+   sequential single-hue ramps for magnitude. Dark mode is its own set of
+   steps against the dark surface, not an automatic flip. */
+:root{
+  color-scheme:light;
+  --bg:#edece7; --panel:#ffffff; --panel2:#f7f6f2; --surface:#ffffff;
+  --ink:#17160f; --ink2:#52514e; --muted:#898781; --line:#d8d6cc;
+  --grid:#e1e0d9; --baseline:#c3c2b7;
+  --strike:#d62728; --laser:#9467bd; --amber:#e07b00;
+  --good:#0ca30c; --critical:#d03b3b;
+  --series1:#2a78d6; --series2:#eb6834;
+  --focus:#2a78d6;
+  --mono:ui-monospace,"JetBrains Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --bg:#0d0d0d; --panel:#1a1a19; --panel2:#222221; --surface:#1a1a19;
+    --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --line:#383835;
+    --grid:#2c2c2a; --baseline:#383835;
+    --strike:#e66767; --laser:#b191d6; --amber:#eda100;
+    --good:#0ca30c; --critical:#d03b3b;
+    --series1:#3987e5; --series2:#d95926;
+    --focus:#3987e5;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0d0d0d; --panel:#1a1a19; --panel2:#222221; --surface:#1a1a19;
+  --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --line:#383835;
+  --grid:#2c2c2a; --baseline:#383835;
+  --strike:#e66767; --laser:#b191d6; --amber:#eda100;
+  --good:#0ca30c; --critical:#d03b3b;
+  --series1:#3987e5; --series2:#d95926;
+  --focus:#3987e5;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.5;padding:0 0 4rem}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(12px,3vw,28px)}
+a{color:var(--series1)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ------------------------------------------------------------------ header */
+header{padding:clamp(20px,4vw,40px) 0 14px}
+h1{font-size:clamp(21px,3.4vw,31px);line-height:1.2;font-weight:650;
+  letter-spacing:-0.01em;text-wrap:balance}
+.lede{color:var(--ink2);margin-top:9px;max-width:62ch;font-size:15px}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:7px;
+  padding:7px 11px;min-width:78px}
+.stat b{display:block;font-size:19px;font-weight:650;line-height:1.15}
+.stat span{display:block;font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-top:2px}
+.themebtn{position:absolute;top:14px;right:clamp(12px,3vw,28px);
+  background:var(--panel);border:1px solid var(--line);color:var(--ink2);
+  border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}
+.themebtn:hover{border-color:var(--ink2)}
+
+/* ----------------------------------------------------------------- filters */
+.filters{position:sticky;top:0;z-index:20;background:var(--bg);
+  border-bottom:1px solid var(--line);padding:10px 0 11px;margin-top:12px}
+.frow{display:flex;flex-wrap:wrap;gap:7px 16px;align-items:center}
+.fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.flabel{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);margin-right:1px}
+.chip{font:inherit;font-size:12.5px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink2);
+  cursor:pointer;white-space:nowrap;font-family:var(--mono)}
+.chip:hover{border-color:var(--ink2);background:var(--panel2)}
+.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);
+  color:var(--panel);font-weight:600}
+.chip.good[aria-pressed="true"]{background:var(--good);border-color:var(--good);
+  color:#fff}
+.chip.bad[aria-pressed="true"]{background:var(--critical);
+  border-color:var(--critical);color:#fff}
+.num{font-family:var(--mono);font-size:12.5px;color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:6px;
+  padding:4px 6px;width:5.4em}
+input[type=range]{accent-color:var(--series1);width:118px;vertical-align:middle}
+.btn{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:7px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--ink2);background:var(--panel2)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.count{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+.count b{color:var(--ink)}
+
+/* -------------------------------------------------------------------- tabs */
+.tabs{display:flex;gap:4px;margin:18px 0 0;border-bottom:1px solid var(--line)}
+.tab{font:inherit;font-size:14px;padding:9px 15px;background:none;border:0;
+  border-bottom:2px solid transparent;color:var(--ink2);cursor:pointer;
+  margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);
+  font-weight:600}
+
+/* ------------------------------------------------------------------- cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:clamp(12px,2.2vw,20px);margin-top:16px}
+.card h2{font-size:16px;font-weight:650;letter-spacing:-0.005em}
+.card h3{font-size:13.5px;font-weight:650;margin-top:2px}
+.sub{color:var(--ink2);font-size:13px;margin-top:5px;max-width:74ch}
+.foot{color:var(--muted);font-size:12px;margin-top:12px;max-width:80ch}
+.grid3{display:grid;gap:14px;margin-top:12px;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.plot{width:100%;height:330px}
+.plot.tall{height:380px}
+.plot.wide{height:300px}
+/* the band map is one square panel; without a cap it stretches across the
+   whole card and the drum ends up a stamp in the middle */
+.bandbox{max-width:430px;margin-top:12px}
+.hidden{display:none!important}
+
+/* ------------------------------------------------------------------ tables */
+.tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);
+  border-radius:8px;max-height:460px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);
+  font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 9px;text-align:right;white-space:nowrap;
+  border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+thead th{position:sticky;top:0;background:var(--panel2);color:var(--ink2);
+  font-weight:600;cursor:pointer;font-size:11px;letter-spacing:.03em;z-index:1}
+thead th:hover{color:var(--ink)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--panel2)}
+tbody tr[aria-selected="true"]{background:color-mix(in srgb,var(--series1) 14%,transparent)}
+td.pill span{display:inline-block;padding:1px 7px;border-radius:999px;
+  font-size:10.5px;font-weight:600}
+.ok span{background:color-mix(in srgb,var(--good) 16%,transparent);
+  color:var(--good)}
+.no span{background:color-mix(in srgb,var(--critical) 16%,transparent);
+  color:var(--critical)}
+
+/* ------------------------------------------------------------------ notice */
+.note{border-left:3px solid var(--amber);
+  background:color-mix(in srgb,var(--amber) 8%,transparent);
+  padding:9px 13px;border-radius:0 7px 7px 0;font-size:12.5px;
+  color:var(--ink2);margin-top:12px;max-width:80ch}
+.note b{color:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;
+  color:var(--ink2);font-family:var(--mono)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;
+  margin-right:5px;vertical-align:-1px;border:2px solid}
+.lg-strike i{border-color:var(--strike)}
+.lg-laser i{border-color:var(--laser);background:color-mix(in srgb,var(--laser) 33%,transparent)}
+.lg-clip i{width:6px;height:6px;border:0;background:var(--ink2);
+  margin:0 8px 0 3px}
+footer{color:var(--muted);font-size:12px;margin-top:30px;padding-top:16px;
+  border-top:1px solid var(--line)}
+footer ul{margin:8px 0 0 18px}
+footer li{margin-bottom:4px;max-width:82ch}
+.loading{padding:60px 0;text-align:center;color:var(--muted);
+  font-family:var(--mono);font-size:13px}
+</style>
+</head>
+<body>
+
+<button class="themebtn" id="themebtn" type="button">theme</button>
+
+<div class="wrap">
+<header>
+  <h1>Drum map explorer</h1>
+  <p class="lede">Every strike of the full-drum campaign behind the poster
+    <em>Exploring the Vibrations of a Circular Membrane with a Low-Cost Optical
+    Sensor</em>. A 50&nbsp;mm 3D-printed TPU head, struck from below by a
+    solenoid on a two-axis stage, watched by a reflective optical sensor that
+    costs about a dollar. Slice it however you like, and take the data with
+    you.</p>
+  <div class="stats" id="stats"></div>
+</header>
+
+<div class="filters" id="filters">
+  <div class="frow">
+    <div class="fgroup"><span class="flabel">mounting</span><span id="fMount"></span></div>
+    <div class="fgroup"><span class="flabel">sensor station</span><span id="fStation"></span></div>
+    <div class="fgroup"><span class="flabel">verdict</span><span id="fVerdict"></span></div>
+    <div class="fgroup"><span class="flabel">clipped</span><span id="fClip"></span></div>
+  </div>
+  <div class="frow" style="margin-top:7px">
+    <div class="fgroup"><span class="flabel">r/a</span>
+      <input type="range" id="raMin" min="0" max="1" step="0.02" value="0"
+             aria-label="minimum r/a">
+      <input type="range" id="raMax" min="0" max="1" step="0.02" value="1"
+             aria-label="maximum r/a">
+      <span class="count" id="raOut">0.00 &ndash; 1.00</span>
+    </div>
+    <div class="fgroup hidden" id="bandGroup">
+      <span class="flabel">mode&nbsp;map band</span>
+      <input class="num" id="bandC" type="number" step="1" aria-label="band centre Hz">
+      <span class="count">&plusmn;</span>
+      <input class="num" id="bandW" type="number" step="1" min="2" max="60"
+             value="12" aria-label="band half width Hz">
+      <span class="count">Hz</span>
+    </div>
+    <div class="fgroup" style="margin-left:auto">
+      <span class="count" id="fCount"></span>
+      <button class="btn" id="reset" type="button">reset</button>
+      <a class="btn primary" id="dl" href="data/points.csv" download="drum_map_points.csv">download CSV</a>
+    </div>
+  </div>
+</div>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" id="tab-map" data-view="map" aria-selected="true">Map</button>
+  <button class="tab" role="tab" id="tab-modes" data-view="modes" aria-selected="false">Modes</button>
+  <button class="tab" role="tab" id="tab-strikes" data-view="strikes" aria-selected="false">Strikes</button>
+</div>
+
+<div id="boot" class="loading">loading the campaign&hellip;</div>
+
+<main id="app" class="hidden">
+
+<!-- =============================================================== MAP === -->
+<section id="view-map" role="tabpanel" aria-labelledby="tab-map">
+  <div class="card">
+    <h2>The membrane, cell by cell</h2>
+    <p class="sub">Each square is one 4&nbsp;mm cell of the head, averaged over
+      every strike that survives the filters above. This is the poster's
+      figure, live.</p>
+    <div class="frow" style="margin-top:11px">
+      <span class="flabel">metric</span><span id="fMetric"></span>
+      <button class="btn" id="mapTableBtn" type="button"
+              style="margin-left:auto">table view</button>
+    </div>
+    <div class="grid3" id="mapPlots"></div>
+    <div class="legend" id="mapLegend">
+      <span class="lg-clip"><i></i>clipped cell (amplitude is a lower bound)</span>
+      <span>dashed ring: r/a = 0.48, the (1,1) antinode</span>
+    </div>
+    <div class="note" id="mapNote"></div>
+    <div class="tablewrap hidden" id="mapTable"></div>
+  </div>
+</section>
+
+<!-- ============================================================= MODES === -->
+<section id="view-modes" class="hidden" role="tabpanel" aria-labelledby="tab-modes">
+  <div class="card">
+    <h2>Ring-down spectrum</h2>
+    <p class="sub">The median tail spectrum of every selected strike, each
+      normalised to its own peak first so a hard hit cannot outvote a soft one.
+      The labelled peaks are the ones the campaign's own picker keeps.</p>
+    <div class="plot wide" id="specPlot"></div>
+    <div class="frow" style="margin-top:10px">
+      <span class="flabel">map this peak</span><span id="fMode"></span>
+    </div>
+  </div>
+  <div class="card">
+    <h2 id="bandTitle">Where that peak lives on the head</h2>
+    <p class="sub" id="bandSub"></p>
+    <div class="plot tall bandbox" id="bandPlot"></div>
+    <div class="note" id="bandNote"></div>
+  </div>
+</section>
+
+<!-- =========================================================== STRIKES === -->
+<section id="view-strikes" class="hidden" role="tabpanel" aria-labelledby="tab-strikes">
+  <div class="card">
+    <h2>Every strike</h2>
+    <p class="sub">One row per hit, in the order it was struck. Click a row to
+      see that strike's own ring-down spectrum against the median. Sort by any
+      column.</p>
+    <div class="tablewrap" id="strikeTable"></div>
+  </div>
+  <div class="card">
+    <h2 id="strikeTitle">Pick a strike</h2>
+    <p class="sub" id="strikeSub">Click any row above.</p>
+    <div class="plot wide" id="strikePlot"></div>
+  </div>
+</section>
+
+</main>
+
+<footer id="honesty"></footer>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-cartesian-2.35.2.min.js" charset="utf-8"></script>
+<script>
+/* Conference wifi blocks things. If the CDN did not answer, fall back to the
+   copy that ships with this site, so a scanned QR never lands on a blank page.
+   document.write is deliberate: it keeps the load synchronous, so the app
+   script below still finds window.Plotly. */
+if (!window.Plotly) document.write(
+  '<script src="vendor/plotly-cartesian.min.js"><\/script>');
+</script>
+<script>
+"use strict";
+
+/* ====================================================================== data
+   Three static files. Nothing else; there is no backend. */
+const DATA = {};
+const $ = (id) => document.getElementById(id);
+
+/* Sequential single-hue ramps, the same ones the bench figures use. On a dark
+   surface the ramp is reversed so "near zero" recedes toward the surface
+   instead of glowing. Never a rainbow. */
+const RAMPS = {
+  blue:  ["#cde2fb","#9ec5f4","#6da7ec","#3987e5","#256abf","#184f95","#0d366b"],
+  orange:["#fde3d7","#f9c4aa","#f3a077","#eb6834","#c94e1d","#9c3a12","#6f2809"],
+  aqua:  ["#d2f2e4","#a5e4c9","#6fd0a8","#1baf7a","#0f8a5e","#0a6a48","#064f35"],
+};
+const isDark = () => getComputedStyle(document.documentElement)
+  .getPropertyValue("color-scheme").trim().includes("dark");
+const cssv = (n) => getComputedStyle(document.documentElement)
+  .getPropertyValue(n).trim();
+function scale(hue){
+  const r = isDark() ? RAMPS[hue].slice().reverse() : RAMPS[hue];
+  return r.map((c,i)=>[i/(r.length-1), c]);
+}
+const MONO = 'ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace';
+const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+
+function baseLayout(extra){
+  const L = {
+    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
+    font:{family:MONO, size:11, color:cssv("--ink2")},
+    margin:{l:44,r:8,t:34,b:38},
+    hoverlabel:{font:{family:MONO,size:12}, bgcolor:cssv("--panel"),
+                bordercolor:cssv("--line"), namelength:-1},
+    showlegend:false,
+  };
+  return Object.assign(L, extra||{});
+}
+const CFG = {responsive:true, displaylogo:false,
+  modeBarButtonsToRemove:["select2d","lasso2d","autoScale2d","toggleSpikelines"]};
+
+/* ===================================================================== state
+   Everything a reader can change lives here and round-trips through the URL
+   hash, so any view of this dataset is a link somebody can send. */
+const S = {
+  view:"map",
+  mounts:new Set(), stations:new Set(),
+  verdict:new Set(["used"]),       // poster default: the good strikes only
+  clip:"all",
+  raMin:0, raMax:1,
+  metric:"poster",
+  mode:1,                          // index into campaign.modes
+  bandC:null, bandW:12,
+  strike:null,
+  sort:{key:"i", dir:1},
+  mapTable:false,
+};
+
+function writeHash(){
+  const c = DATA.campaign;
+  const p = new URLSearchParams();
+  p.set("v", S.view);
+  if (S.mounts.size !== c.mounts.length) p.set("m",[...S.mounts].join(","));
+  if (S.stations.size !== c.stations_used.length) p.set("s",[...S.stations].join(","));
+  if (S.verdict.size !== 1 || !S.verdict.has("used")) p.set("u",[...S.verdict].join(","));
+  if (S.clip !== "all") p.set("c", S.clip);
+  if (S.raMin > 0 || S.raMax < 1) p.set("ra", `${S.raMin},${S.raMax}`);
+  if (S.metric !== "poster") p.set("k", S.metric);
+  if (S.mode !== 1) p.set("p", String(S.mode));
+  if (S.bandW !== 12) p.set("bw", String(S.bandW));
+  if (S.bandC !== null) p.set("bc", String(S.bandC));
+  if (S.strike !== null) p.set("x", String(S.strike));
+  history.replaceState(null,"", "#"+p.toString());
+}
+function readHash(){
+  const c = DATA.campaign;
+  const p = new URLSearchParams(location.hash.slice(1));
+  const list = (k, fb, cast) => p.has(k)
+    ? new Set(p.get(k).split(",").filter(Boolean).map(cast))
+    : new Set(fb);
+  S.view     = ["map","modes","strikes"].includes(p.get("v")) ? p.get("v") : "map";
+  S.mounts   = list("m", c.mounts.map(m=>"mount"+m.mount), String);
+  S.stations = list("s", c.stations_used, Number);
+  S.verdict  = list("u", ["used"], String);
+  S.clip     = ["all","yes","no"].includes(p.get("c")) ? p.get("c") : "all";
+  if (p.has("ra")){
+    const [a,b] = p.get("ra").split(",").map(Number);
+    if (isFinite(a)) S.raMin = a;
+    if (isFinite(b)) S.raMax = b;
+  }
+  if (p.has("k")) S.metric = p.get("k");
+  if (p.has("p")) S.mode = Math.max(0, Math.min(c.modes.length-1, +p.get("p")||0));
+  if (p.has("bw")) S.bandW = Math.max(2, Math.min(60, +p.get("bw")||12));
+  S.bandC = p.has("bc") ? +p.get("bc") : null;
+  S.strike = p.has("x") ? +p.get("x") : null;
+}
+
+/* ================================================================= filtering
+   Rejected strikes and jams are never dropped from the dataset; they are
+   filtered like anything else, and the default just happens to be the same
+   selection the poster figure uses. */
+function passes(r){
+  if (!S.mounts.has(r.mount)) return false;
+  if (r.station !== null && !S.stations.has(r.station)) return false;
+  const v = r.jam ? "jam" : (r.used ? "used" : "rejected");
+  if (!S.verdict.has(v)) return false;
+  if (S.clip === "yes" && !r.clipped) return false;
+  if (S.clip === "no" && r.clipped) return false;
+  const ra = r.r_over_a;
+  if (ra === null || ra < S.raMin - 1e-9 || ra > S.raMax + 1e-9) return false;
+  return true;
+}
+function selection(){
+  const out = [];
+  DATA.strikes.forEach((r,i)=>{ if (passes(r)) out.push(i); });
+  return out;
+}
+
+/* ============================================================ aggregation */
+const cellKey = (r) => `${r.x}|${r.y}`;
+
+function cellsOf(idxs, valueOf){
+  const acc = new Map();
+  for (const i of idxs){
+    const r = DATA.strikes[i], v = valueOf(r, i);
+    if (v === null || v === undefined || !isFinite(v)) continue;
+    const k = cellKey(r);
+    let e = acc.get(k);
+    if (!e){ e = {x:r.x, y:r.y, sum:0, n:0, clip:false}; acc.set(k, e); }
+    e.sum += v; e.n += 1; e.clip = e.clip || r.clipped;
+  }
+  for (const e of acc.values()) e.mean = e.sum / e.n;
+  return acc;
+}
+
+/* The grid is fixed by the campaign (4 mm), not by the current filter, so the
+   membrane does not resize as cells drop out of the selection. */
+function grid(){
+  if (DATA._grid) return DATA._grid;
+  const xs = [...new Set(DATA.strikes.map(r=>r.x))].sort((a,b)=>a-b);
+  const ys = [...new Set(DATA.strikes.map(r=>r.y))].sort((a,b)=>a-b);
+  DATA._grid = {xs, ys,
+    ix:new Map(xs.map((v,i)=>[v,i])), iy:new Map(ys.map((v,i)=>[v,i]))};
+  return DATA._grid;
+}
+
+function zMatrix(acc){
+  const g = grid();
+  const z = g.ys.map(()=>g.xs.map(()=>null));
+  const n = g.ys.map(()=>g.xs.map(()=>0));
+  for (const e of acc.values()){
+    const r = g.iy.get(e.y), c = g.ix.get(e.x);
+    if (r === undefined || c === undefined) continue;
+    z[r][c] = e.mean; n[r][c] = e.n;
+  }
+  return {z, n, xs:g.xs, ys:g.ys};
+}
+
+/* ============================================================== spectra ==
+   spectra.json stores each strike normalised to its own peak and quantised;
+   `scale` puts the raw |F| back when a band amplitude needs real units. */
+const specOf = (i) => DATA.spectra.amp[i];
+const fAt = (k) => DATA.spectra.f0 + k * DATA.spectra.df;
+function freqAxis(){
+  if (DATA._f) return DATA._f;
+  DATA._f = Array.from({length:DATA.spectra.n}, (_,k)=>+fAt(k).toFixed(2));
+  return DATA._f;
+}
+function medianSpectrum(idxs){
+  const n = DATA.spectra.n, rows = idxs.filter(i=>specOf(i));
+  if (!rows.length) return null;
+  const out = new Float64Array(n), buf = new Float64Array(rows.length);
+  for (let k=0;k<n;k++){
+    for (let j=0;j<rows.length;j++) buf[j] = specOf(rows[j])[k];
+    const s = Array.prototype.slice.call(buf).sort((a,b)=>a-b);
+    const m = s.length >> 1;
+    out[k] = s.length % 2 ? s[m] : 0.5*(s[m-1]+s[m]);
+  }
+  const sc = DATA.spectra.amp_scale;
+  return Array.from(out, v => v/sc);
+}
+/* Per-cell band amplitude: mean raw |F| over fc +- half, averaged per cell,
+   then normalised to the map's own maximum. This is the SIMPLE version of the
+   poster's mode map (see the footnote under the figure). */
+function bandCells(idxs, fc, half){
+  const k0 = Math.max(0, Math.ceil((fc-half-DATA.spectra.f0)/DATA.spectra.df));
+  const k1 = Math.min(DATA.spectra.n-1,
+                      Math.floor((fc+half-DATA.spectra.f0)/DATA.spectra.df));
+  const sc = DATA.spectra.amp_scale;
+  return cellsOf(idxs, (r,i)=>{
+    const a = specOf(i);
+    if (!a || k1 < k0) return null;
+    let s = 0;
+    for (let k=k0;k<=k1;k++) s += a[k];
+    return (s/(k1-k0+1)) / sc * DATA.spectra.scale[i];
+  });
+}
+
+/* ================================================================== drawing */
+function drumShapes(){
+  const a = DATA.campaign.membrane.a_mm;
+  /* --muted is the one ink that reads on both surfaces, so the rim and the
+     antinode ring do not vanish when the page flips to dark. */
+  const ring = (r, dash, op) => ({type:"circle", xref:"x", yref:"y",
+    x0:-r, y0:-r, x1:r, y1:r, opacity:op,
+    line:{color:cssv("--muted"), width:dash?1.2:1.8, dash:dash||"solid"},
+    layer:"below"});
+  return [ring(a, null, 1), ring(0.48*a, "dash", 0.7)];
+}
+
+function heatmap(divId, acc, opts){
+  const {z, n, xs, ys} = zMatrix(acc);
+  const a = DATA.campaign.membrane.a_mm, lim = a + 2.5;
+  const custom = z.map((row,r)=>row.map((_,c)=>n[r][c]));
+  const traces = [{
+    type:"heatmap", x:xs, y:ys, z, customdata:custom,
+    colorscale:scale(opts.hue), xgap:2, ygap:2,   /* 2px surface gap, no borders */
+    hoverongaps:false,
+    colorbar:{title:{text:opts.unit, side:"right", font:{size:11}},
+      thickness:11, len:0.82, outlinewidth:0, tickfont:{size:10},
+      tickcolor:cssv("--baseline"), ticklen:3},
+    hovertemplate:`x %{x} mm &nbsp; y %{y} mm<br>`+
+      `<b>%{z:.4~s} ${opts.unit}</b><br>%{customdata} strike(s)<extra></extra>`,
+  }];
+  if (opts.clipped){
+    const cx = [], cy = [];
+    for (const e of acc.values()) if (e.clip){ cx.push(e.x); cy.push(e.y); }
+    if (cx.length) traces.push({type:"scatter", x:cx, y:cy, mode:"markers",
+      marker:{size:4, color:cssv("--ink2"), symbol:"circle"},
+      hovertemplate:"clipped: amplitude is a lower bound<extra></extra>"});
+  }
+  Plotly.react(divId, traces, baseLayout({
+    title:{text:opts.title, font:{family:SANS, size:14, color:cssv("--ink")},
+           x:0, xanchor:"left", y:0.97},
+    xaxis:{range:[-lim,lim], zeroline:false, showgrid:false, constrain:"domain",
+      tickfont:{size:10}, linecolor:cssv("--baseline"), ticks:"outside",
+      ticklen:3, tickcolor:cssv("--baseline"), title:{text:"x (mm)", standoff:6,
+      font:{size:10.5}}},
+    /* constrain:"domain" shrinks the PLOT AREA to the fixed +-lim range
+       instead of widening the range to fill the box, so all three panels
+       show the same millimetres however wide their tick labels are. */
+    yaxis:{range:[-lim,lim], zeroline:false, showgrid:false, scaleanchor:"x",
+      constrain:"domain",
+      tickfont:{size:10}, linecolor:cssv("--baseline"), ticks:"outside",
+      ticklen:3, tickcolor:cssv("--baseline"), title:{text:"y (mm)", standoff:4,
+      font:{size:10.5}}},
+    shapes:drumShapes(),
+    margin:{l:46,r:8,t:38,b:40},
+  }), Object.assign({}, CFG, {displayModeBar:false}));
+}
+
+const METRICS = {
+  pp:   {title:"Amplitude", unit:"mV",  hue:"blue",   get:r=>r.pp_mv,   clipped:true},
+  t60:  {title:"Decay T60", unit:"ms",  hue:"orange", get:r=>r.T60_ms},
+  mode1:{title:"Dominant mode", unit:"Hz", hue:"aqua",
+         get:r=>(r.modes_hz && r.modes_hz.length ? r.modes_hz[0] : null)},
+  snr:  {title:"Signal to noise", unit:"dB", hue:"blue", get:r=>r.snr_db},
+  r2:   {title:"Decay fit quality", unit:"r²", hue:"orange", get:r=>r.decay_r2},
+};
+
+function drawMap(idxs){
+  const keys = S.metric === "poster" ? ["pp","t60","mode1"] : [S.metric];
+  const host = $("mapPlots");
+  host.innerHTML = "";
+  /* Append EVERY panel before plotting any of them. Plotly sizes a plot from
+     the div's width at draw time, and in an auto-fit grid the first child is
+     briefly the full row wide - plotting inside the append loop drew panel 1
+     at 1180 px and then let CSS clip it. */
+  const divs = keys.map(k => {
+    const d = document.createElement("div");
+    d.className = "plot" + (keys.length === 1 ? " tall" : "");
+    d.id = "map_" + k;
+    host.appendChild(d);
+    return d;
+  });
+  keys.forEach((k,i)=>heatmap(divs[i].id, cellsOf(idxs, METRICS[k].get),
+                              METRICS[k]));
+  const acc = cellsOf(idxs, METRICS[keys[0]].get);
+  const nclip = [...acc.values()].filter(e=>e.clip).length;
+  $("mapNote").innerHTML = `<b>${acc.size}</b> of the campaign's `+
+    `${DATA.campaign.counts.cells} cells are in this slice`+
+    (nclip ? `, and <b>${nclip}</b> of them contain a strike that railed the `+
+      `amplifier &mdash; their amplitude is a censored <b>lower bound</b>, `+
+      `not a measurement.` : `. None of them clipped.`);
+  drawMapTable(idxs, keys);
+}
+
+/* The table-view twin: every number the colour carries, in text. */
+function drawMapTable(idxs, keys){
+  if (!S.mapTable){ $("mapTable").classList.add("hidden"); return; }
+  const accs = keys.map(k=>cellsOf(idxs, METRICS[k].get));
+  const cells = new Map();
+  accs.forEach((acc,j)=>{ for (const [k,e] of acc){
+    let row = cells.get(k);
+    if (!row){ row = {x:e.x, y:e.y, n:e.n, clip:e.clip, v:[]}; cells.set(k,row); }
+    row.v[j] = e.mean;
+  }});
+  const rows = [...cells.values()].sort((a,b)=>a.y-b.y || a.x-b.x);
+  const head = `<tr><th class="l">x (mm)</th><th>y (mm)</th><th>strikes</th>`+
+    keys.map(k=>`<th>${METRICS[k].title} (${METRICS[k].unit})</th>`).join("")+
+    `<th>clipped</th></tr>`;
+  const body = rows.map(r=>`<tr><td class="l">${r.x.toFixed(1)}</td>`+
+    `<td>${r.y.toFixed(1)}</td><td>${r.n}</td>`+
+    keys.map((_,j)=>`<td>${r.v[j]===undefined?"":fmt(r.v[j])}</td>`).join("")+
+    `<td class="pill ${r.clip?"no":"ok"}"><span>${r.clip?"yes":"no"}</span></td></tr>`
+  ).join("");
+  $("mapTable").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  $("mapTable").classList.remove("hidden");
+}
+const fmt = (v) => Math.abs(v) >= 100 ? v.toFixed(0)
+                 : Math.abs(v) >= 10  ? v.toFixed(1) : v.toFixed(3);
+
+/* ------------------------------------------------------------------ modes */
+function drawModes(idxs){
+  const med = medianSpectrum(idxs);
+  const f = freqAxis();
+  const traces = [];
+  if (med){
+    traces.push({type:"scatter", x:f, y:med, mode:"lines",
+      name:"median of the selection", line:{color:cssv("--series1"), width:2},
+      hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b> (rel.)<extra></extra>"});
+  }
+  const sel = S.strike !== null && specOf(S.strike);
+  if (sel){
+    const r = DATA.strikes[S.strike], sc = DATA.spectra.amp_scale;
+    traces.push({type:"scatter", x:f, y:Array.from(specOf(S.strike), v=>v/sc),
+      mode:"lines", name:`strike ${r.mount} #${r.strike} at (${r.x}, ${r.y})`,
+      line:{color:cssv("--series2"), width:1.6},
+      hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b> (rel.)<extra></extra>"});
+  }
+  const ann = [];
+  if (med) DATA.campaign.modes.forEach((m,i)=>{
+    const k = Math.round((m.hz - DATA.spectra.f0)/DATA.spectra.df);
+    if (k < 0 || k >= med.length) return;
+    const elec = m.kind === "electrical";
+    ann.push({x:m.hz, y:Math.log10(Math.max(med[k],1e-4)), xref:"x", yref:"y",
+      text:`<b>${m.hz.toFixed(0)} Hz</b>` + (elec ? "<br>electrical" : ""),
+      showarrow:true, arrowhead:0, arrowwidth:1, arrowcolor:cssv("--baseline"),
+      ax:0, ay:i===2 ? -46 : -26,
+      font:{family:MONO, size:elec?10.5:12.5, color:elec?cssv("--muted"):cssv("--ink")},
+      bgcolor:cssv("--panel"), bordercolor:"rgba(0,0,0,0)", borderpad:2});
+  });
+  Plotly.react("specPlot", traces, baseLayout({
+    showlegend: traces.length > 1,
+    legend:{orientation:"h", y:1.16, x:0, font:{size:11}, bgcolor:"rgba(0,0,0,0)"},
+    margin:{l:52, r:10, t:traces.length>1?52:26, b:44},
+    xaxis:{title:{text:"frequency (Hz)", font:{size:11}, standoff:6},
+      gridcolor:cssv("--grid"), zeroline:false, linecolor:cssv("--baseline"),
+      ticks:"outside", ticklen:3, tickcolor:cssv("--baseline")},
+    yaxis:{type:"log", title:{text:"ring-down amplitude (rel.)", font:{size:11},
+      standoff:8}, gridcolor:cssv("--grid"), zeroline:false, showticklabels:false,
+      linecolor:cssv("--baseline")},
+    annotations:ann,
+    hovermode:"x unified",
+  }), CFG);
+  drawBand(idxs);
+}
+
+function drawBand(idxs){
+  const m = DATA.campaign.modes[S.mode];
+  const fc = S.bandC === null ? m.hz : S.bandC;
+  const half = S.bandW;
+  const acc = bandCells(idxs, fc, half);
+  let mx = 0;
+  for (const e of acc.values()) mx = Math.max(mx, e.mean);
+  if (mx > 0) for (const e of acc.values()) e.mean = e.mean / mx;
+  heatmap("bandPlot", acc, {title:`${fc.toFixed(0)} Hz band`,
+    unit:"rel.", hue:"blue"});
+  const elec = m.kind === "electrical";
+  $("bandTitle").textContent = `Where the ${fc.toFixed(0)} Hz content sits on the head`;
+  $("bandSub").innerHTML = `Mean tail amplitude in ${fc.toFixed(0)} &plusmn; `+
+    `${half} Hz per cell, each map scaled to its own maximum. `+
+    (elec ? `This line is <b>electrical pickup</b>, not the drum: expect it to `+
+            `be flat, because it does not care where you hit.`
+          : `A real membrane mode has nodes &mdash; places where the map goes `+
+            `dark no matter how hard you hit them.`);
+  $("bandNote").innerHTML = `This is the <b>simple</b> band map: the mean of `+
+    `|F| over the band, per cell. The poster's figure uses the masked rank-1 `+
+    `factorisation, which additionally glues the three sensor stations onto `+
+    `one scale. The two agree in shape; they do not agree in absolute scale, `+
+    `and this one will look noisier wherever one station dominates a cell.`;
+}
+
+/* ---------------------------------------------------------------- strikes */
+/* Verdict and clipped sit EARLY, because they are the honesty columns and the
+   table is the one thing here wide enough to scroll sideways - the reader must
+   never have to go looking for "was this hit any good". The modes list is last
+   for the same reason: it is the column that may fall off the edge. */
+const COLS = [
+  {k:"i",      t:"#",        l:true, get:(r,i)=>i+1},
+  {k:"mount",  t:"mounting", l:true, get:r=>r.mount.replace("mount","M")},
+  {k:"verdict",t:"verdict",  l:true, pill:true,
+   get:r=>r.jam ? "jam" : (r.used ? "used" : "rejected"),
+   ok:r=>r.used && !r.jam},
+  {k:"clipped",t:"clipped",  l:true, pill:true,
+   get:r=>r.clipped ? "yes" : "no", ok:r=>!r.clipped},
+  {k:"x",      t:"x (mm)",   get:r=>r.x},
+  {k:"y",      t:"y (mm)",   get:r=>r.y},
+  {k:"r_over_a", t:"r/a",    get:r=>r.r_over_a, d:3},
+  {k:"station", t:"station", get:r=>r.station},
+  {k:"strike", t:"strike",   get:r=>r.strike},
+  {k:"pp_mv",  t:"pp (mV)",  get:r=>r.pp_mv, d:1},
+  {k:"peak_mv",t:"peak (mV)",get:r=>r.peak_mv, d:1},
+  {k:"snr_db", t:"SNR (dB)", get:r=>r.snr_db, d:1},
+  {k:"T60_ms", t:"T60 (ms)", get:r=>r.T60_ms, d:1},
+  {k:"decay_r2", t:"r²", get:r=>r.decay_r2, d:3},
+  {k:"modes",  t:"modes (Hz)", l:true,
+   get:r=>(r.modes_hz||[]).map(v=>v.toFixed(0)).join(" / ")},
+];
+
+function drawStrikes(idxs){
+  const rows = idxs.slice();
+  const c = COLS.find(c=>c.k === S.sort.key) || COLS[0];
+  rows.sort((a,b)=>{
+    const va = c.get(DATA.strikes[a], a), vb = c.get(DATA.strikes[b], b);
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    return (va > vb ? 1 : va < vb ? -1 : 0) * S.sort.dir;
+  });
+  const head = `<tr>` + COLS.map(col=>{
+    const on = col.k === S.sort.key;
+    return `<th class="${col.l?"l":""}" data-sort="${col.k}">${col.t}`+
+      (on ? (S.sort.dir>0 ? " ↑" : " ↓") : "") + `</th>`;
+  }).join("") + `</tr>`;
+  const body = rows.map(i=>{
+    const r = DATA.strikes[i];
+    return `<tr data-i="${i}" aria-selected="${S.strike===i}">` + COLS.map(col=>{
+      let val = col.get(r, i);
+      if (col.pill)
+        return `<td class="l pill ${col.ok(r)?"ok":"no"}"><span>${val}</span></td>`;
+      if (typeof val === "number" && col.d !== undefined) val = val.toFixed(col.d);
+      return `<td class="${col.l?"l":""}">${val===null||val===undefined?"":val}</td>`;
+    }).join("") + `</tr>`;
+  }).join("");
+  $("strikeTable").innerHTML =
+    `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  drawStrikeSpec(idxs);
+}
+
+function drawStrikeSpec(idxs){
+  if (S.strike === null || !DATA.strikes[S.strike]){
+    $("strikeTitle").textContent = "Pick a strike";
+    $("strikeSub").textContent = "Click any row above.";
+    Plotly.purge("strikePlot");
+    return;
+  }
+  const r = DATA.strikes[S.strike], f = freqAxis();
+  const sc = DATA.spectra.amp_scale;
+  const med = medianSpectrum(idxs);
+  const traces = [];
+  if (med) traces.push({type:"scatter", x:f, y:med, mode:"lines",
+    name:"median of the selection", line:{color:cssv("--series1"), width:2},
+    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
+  if (specOf(S.strike)) traces.push({type:"scatter", x:f,
+    y:Array.from(specOf(S.strike), v=>v/sc), mode:"lines",
+    name:"this strike", line:{color:cssv("--series2"), width:1.8},
+    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
+  Plotly.react("strikePlot", traces, baseLayout({
+    showlegend:true,
+    legend:{orientation:"h", y:1.16, x:0, font:{size:11}, bgcolor:"rgba(0,0,0,0)"},
+    margin:{l:52,r:10,t:52,b:44},
+    xaxis:{title:{text:"frequency (Hz)", font:{size:11}, standoff:6},
+      gridcolor:cssv("--grid"), zeroline:false, linecolor:cssv("--baseline"),
+      ticks:"outside", ticklen:3, tickcolor:cssv("--baseline")},
+    yaxis:{type:"log", title:{text:"ring-down amplitude (rel.)", font:{size:11},
+      standoff:8}, gridcolor:cssv("--grid"), zeroline:false,
+      showticklabels:false, linecolor:cssv("--baseline")},
+    hovermode:"x unified",
+  }), CFG);
+  const v = r.jam ? "a jam" : (r.used ? "kept by the operator" : "REJECTED by the operator");
+  $("strikeTitle").textContent =
+    `${r.mount.replace("mount","Mounting ")} · strike ${r.strike} at (${r.x}, ${r.y}) mm`;
+  $("strikeSub").innerHTML = `r/a ${r.r_over_a} · sensor station `+
+    `${r.station} at (${r.sensor_x}, ${r.sensor_y}) mm · pp ${r.pp_mv} mV`+
+    (r.clipped ? ` <b>(clipped: lower bound)</b>` : ``) +
+    ` · T60 ${r.T60_ms} ms (r² ${r.decay_r2}) · ${v}.`;
+}
+
+/* ==================================================================== chips */
+function chips(host, items, isOn, onClick, cls){
+  host.innerHTML = "";
+  for (const it of items){
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (cls ? " " + (it.cls || cls) : "");
+    b.textContent = it.label;
+    if (it.title) b.title = it.title;
+    b.setAttribute("aria-pressed", String(isOn(it)));
+    b.onclick = () => { onClick(it); render(); };
+    host.appendChild(b);
+  }
+}
+
+function buildFilters(){
+  const c = DATA.campaign;
+  chips($("fMount"), c.mounts.map(m=>({
+      id:"mount"+m.mount, label:"M"+m.mount, title:m.label})),
+    it=>S.mounts.has(it.id),
+    it=>{ toggle(S.mounts, it.id, c.mounts.map(m=>"mount"+m.mount)); });
+  chips($("fStation"), c.stations_used.map(s=>{
+      const st = c.stations[s-1] || {};
+      return {id:s, label:"S"+s,
+        title:`sensor at (${st.x}, ${st.y}) mm, r/a ${st.r_over_a}`};
+    }),
+    it=>S.stations.has(it.id),
+    it=>{ toggle(S.stations, it.id, c.stations_used); });
+  chips($("fVerdict"), [
+      {id:"used", label:"used", cls:"good", title:"the operator kept this hit"},
+      {id:"rejected", label:"rejected", cls:"bad",
+       title:"saved but rejected at the bench — shown, never hidden"},
+      {id:"jam", label:"jam", cls:"bad", title:"the plunger stuck"},
+    ], it=>S.verdict.has(it.id),
+    it=>{ toggle(S.verdict, it.id, ["used","rejected","jam"]); }, "x");
+  chips($("fClip"), [
+      {id:"all", label:"all"}, {id:"no", label:"clean"},
+      {id:"yes", label:"clipped", title:"the amplifier railed — amplitude is a lower bound"},
+    ], it=>S.clip === it.id, it=>{ S.clip = it.id; });
+  chips($("fMetric"), [
+      {id:"poster", label:"poster trio"},
+      {id:"pp", label:"amplitude"}, {id:"t60", label:"T60"},
+      {id:"mode1", label:"dominant mode"}, {id:"snr", label:"SNR"},
+      {id:"r2", label:"decay r²"},
+    ], it=>S.metric === it.id, it=>{ S.metric = it.id; });
+  chips($("fMode"), c.modes.map((m,i)=>({id:i,
+      label:`${m.hz.toFixed(0)} Hz`, title:`${m.label} — ${m.note}`})),
+    it=>S.mode === it.id, it=>{ S.mode = it.id; S.bandC = null;
+      $("bandC").value = c.modes[it.id].hz.toFixed(0); });
+}
+/* A filter with nothing selected shows nothing, which reads as a broken page.
+   Clearing the last chip therefore restores the full set. */
+function toggle(set, id, all){
+  if (set.has(id)) set.delete(id); else set.add(id);
+  if (!set.size) all.forEach(v=>set.add(v));
+}
+
+function buildStats(){
+  const c = DATA.campaign, k = c.counts;
+  const rows = [
+    [k.strikes, "strikes"], [k.used, "kept"], [k.cells, "cells"],
+    [k.mounts, "mountings"], [c.stations_used.length, "sensor stations"],
+    [c.anchor_hz.toFixed(0)+" Hz", "fundamental"],
+  ];
+  $("stats").innerHTML = rows.map(([v,l])=>
+    `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+  $("honesty").innerHTML = `<b>How to read this honestly</b><ul>`+
+    c.honesty.map(h=>`<li>${h}</li>`).join("") +
+    `<li>Campaign <code>${c.run}</code>, measured ${c.date}. `+
+    `Membrane: ${c.membrane.diameter_mm} mm ${c.membrane.material}, `+
+    `${c.membrane.note}.</li>`+
+    `<li>Lobe axis ${c.axis_deg}&deg;: ${c.axis_note}.</li></ul>`;
+}
+
+/* =================================================================== render */
+function render(){
+  const idxs = selection();
+  $("fCount").innerHTML = `<b>${idxs.length}</b> / ${DATA.strikes.length} strikes`;
+  $("raOut").textContent = `${S.raMin.toFixed(2)} – ${S.raMax.toFixed(2)}`;
+  $("bandGroup").classList.toggle("hidden", S.view !== "modes");
+  for (const v of ["map","modes","strikes"]){
+    $("view-"+v).classList.toggle("hidden", v !== S.view);
+    $("tab-"+v).setAttribute("aria-selected", String(v === S.view));
+  }
+  buildFilters();
+  $("mapTableBtn").textContent = S.mapTable ? "hide table" : "table view";
+  if (!idxs.length){
+    $("mapPlots").innerHTML = `<p class="sub">No strike matches these `+
+      `filters. Widen the r/a range, or press reset.</p>`;
+    ["specPlot","bandPlot","strikePlot"].forEach(id=>Plotly.purge(id));
+    $("strikeTable").innerHTML = "";
+    $("mapNote").innerHTML = "";
+    $("mapTable").classList.add("hidden");
+    $("mapLegend").classList.add("hidden");
+    writeHash();
+    return;
+  }
+  $("mapLegend").classList.remove("hidden");
+  if (S.view === "map") drawMap(idxs);
+  if (S.view === "modes") drawModes(idxs);
+  if (S.view === "strikes") drawStrikes(idxs);
+  writeHash();
+}
+
+/* ===================================================================== wire */
+function wire(){
+  document.querySelectorAll(".tab").forEach(t=>{
+    t.onclick = () => { S.view = t.dataset.view; render(); };
+  });
+  $("raMin").oninput = e => {
+    S.raMin = Math.min(+e.target.value, S.raMax); e.target.value = S.raMin; render(); };
+  $("raMax").oninput = e => {
+    S.raMax = Math.max(+e.target.value, S.raMin); e.target.value = S.raMax; render(); };
+  $("bandC").onchange = e => {
+    const v = +e.target.value;
+    S.bandC = isFinite(v) && v > 0 ? v : null; render(); };
+  $("bandW").onchange = e => {
+    S.bandW = Math.max(2, Math.min(60, +e.target.value || 12));
+    e.target.value = S.bandW; render(); };
+  $("mapTableBtn").onclick = () => { S.mapTable = !S.mapTable; render(); };
+  $("reset").onclick = () => {
+    location.hash = ""; readHash(); syncInputs(); render(); };
+  $("strikeTable").onclick = (e) => {
+    const th = e.target.closest("th[data-sort]");
+    if (th){
+      const k = th.dataset.sort;
+      S.sort = {key:k, dir: S.sort.key === k ? -S.sort.dir : 1};
+      render(); return;
+    }
+    const tr = e.target.closest("tr[data-i]");
+    if (tr){ S.strike = +tr.dataset.i; render(); }
+  };
+  $("themebtn").onclick = () => {
+    const dark = isDark();
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    render();
+  };
+  window.matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (!document.documentElement.hasAttribute("data-theme")) render(); });
+}
+function syncInputs(){
+  $("raMin").value = S.raMin; $("raMax").value = S.raMax;
+  $("bandW").value = S.bandW;
+  $("bandC").value = (S.bandC === null ? DATA.campaign.modes[S.mode].hz : S.bandC)
+    .toFixed(0);
+}
+
+/* ===================================================================== boot */
+Promise.all(["campaign","strikes","spectra"].map(n =>
+    fetch(`data/${n}.json`).then(r=>{
+      if (!r.ok) throw new Error(`data/${n}.json: ${r.status}`);
+      return r.json();
+    })))
+  .then(([campaign, strikes, spectra]) => {
+    DATA.campaign = campaign; DATA.strikes = strikes; DATA.spectra = spectra;
+    readHash();
+    buildStats();
+    wire();
+    syncInputs();
+    $("boot").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    render();
+  })
+  .catch(err => {
+    $("boot").innerHTML = `could not load the data: ${err.message}`;
+    console.error(err);
+  });
+</script>
+</body>
+</html>
