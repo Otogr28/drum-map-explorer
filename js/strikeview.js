@@ -269,6 +269,86 @@ const StrikeView = (() => {
     settle("svRadar");
   }
 
+  /* ---------------------------------------------------------------- sound
+     The pickup samples at 8 kHz and the membrane rings between 270 and 520 Hz,
+     so the record already IS an audible waveform. The buffer here is the same
+     raw counts the vibration panel draws, played at the rate they were taken.
+     Nothing is resampled, nothing is pitch shifted, nothing is filtered: the
+     reader hears the branch the metrics were never taken from, mains hum and
+     all, because that is what the sensor saw.
+
+     Each clip is normalised to its own peak, the same way `spectra.json` is,
+     for the same reason: a soft strike would otherwise be inaudible next to a
+     railed one. Loudness in the ear carries no information about how hard the
+     drum was struck, and the caption says so. */
+  let actx = null, playing = null;
+
+  function audioBuffer(d){
+    const raw = i16(d.w.raw), n = raw.length;
+    let pk = 0;
+    for (let k = 0; k < n; k++) pk = Math.max(pk, Math.abs(raw[k]));
+    const g = pk ? 0.9 / pk : 0;
+    /* 3 ms of taper at both ends. The record is a window cut out of a longer
+       signal and the cut would click. It costs the first and last 24 samples,
+       well outside the onset and the decay span the fit uses. */
+    const ramp = Math.min(Math.round(0.003 * d.fs), n >> 1) || 1;
+    const buf = actx.createBuffer(1, n, d.fs);
+    const ch = buf.getChannelData(0);
+    for (let k = 0; k < n; k++){
+      let a = raw[k] * g;
+      if (k < ramp) a *= k / ramp;
+      else if (k >= n - ramp) a *= (n - 1 - k) / ramp;
+      ch[k] = a;
+    }
+    return buf;
+  }
+
+  const label = (on) => {
+    const b = $("svPlay");
+    if (b) b.innerHTML = on ? "&#9632;&nbsp; stop" : "&#9654;&nbsp; hear this strike";
+  };
+
+  function stopSound(){
+    if (!playing) return;
+    const src = playing;
+    playing = null;                       // before stop(), so onended is a no-op
+    try { src.stop(); } catch (e) {}
+    label(false);
+  }
+
+  function playSound(d){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    /* Built on the click, never before it: browsers refuse an AudioContext
+       that no gesture asked for. */
+    if (!actx) actx = new AC();
+    if (actx.state === "suspended") actx.resume();
+    stopSound();
+    const src = actx.createBufferSource();
+    src.buffer = audioBuffer(d);
+    src.connect(actx.destination);
+    src.onended = () => { if (playing === src){ playing = null; label(false); } };
+    src.start();
+    playing = src;
+    label(true);
+    return true;
+  }
+
+  /* Called from show(), never at load time: this file runs BEFORE core.js,
+     where `$` is defined, so anything touching the DOM up here would throw
+     and take the whole StrikeView module with it. */
+  function wireAudio(){
+    const b = $("svPlay");
+    if (!b) return;
+    b.onclick = () => {
+      if (playing){ stopSound(); return; }
+      const d = pending !== null ? cache.get(pending) : null;
+      if (!d) return;
+      if (!playSound(d))
+        $("svPlayNote").textContent = "This browser will not play audio.";
+    };
+  }
+
   /* --------------------------------------------------------------- driver */
   function render(d, r, i){
     drawWave(d, "svWave", false);
@@ -276,7 +356,15 @@ const StrikeView = (() => {
     drawSpec(d, "svSpec", false);
     drawGram(d, "svGram", false);
     drawRadar(d);
-    $("svNote").innerHTML =
+    $("svAudio").classList.remove("hidden");
+    $("svPlayNote").innerHTML =
+      `${(d.n / d.fs * 1000).toFixed(0)} ms of the raw pickup, played at the `+
+      `${(d.fs/1000).toFixed(0)}&nbsp;kHz it was sampled at. Nothing is pitch `+
+      `shifted and nothing is filtered, so the mains hum is in there too. Every `+
+      `clip is normalised to its own peak, which means how loud it sounds says `+
+      `nothing about how hard the drum was struck.` +
+      (d.clip.clipped ? ` <b>This one railed the amplifier, and the flattened `+
+        `top is audible as distortion.</b>` : ``);
       `Display branch: <b>${(d.steps_d || []).join(" &rarr; ") || "raw"}</b>. `+
       `Every number comes from the despike and high pass branch only, never `+
       `from the gated one. These panels are drawn from series drumlab computed, `+
@@ -286,6 +374,9 @@ const StrikeView = (() => {
   function show(i){
     const r = DATA.strikes[i];
     if (!r) return;
+    wireAudio();
+    stopSound();
+    $("svAudio").classList.add("hidden");
     $("svPanels").classList.add("hidden");
     $("svBoot").classList.remove("hidden");
     $("svBoot").textContent = "loading this strike…";
@@ -311,6 +402,8 @@ const StrikeView = (() => {
 
   function clear(){
     pending = null;
+    stopSound();
+    $("svAudio").classList.add("hidden");
     $("svPanels").classList.add("hidden");
     $("svBoot").classList.add("hidden");
   }

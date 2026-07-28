@@ -7,7 +7,12 @@
 <meta name="theme-color" content="#edece7">
 <meta name="description" content="The poster, the method and every strike: 424 strikes over 101 cells of a 50 mm TPU membrane, measured with a low-cost reflective optical sensor. Read the poster, see how a peak earns the name of a mode, then slice the data yourself.">
 <title>Vibrations of a circular membrane, measured with a dollar sensor</title>
-<link rel="stylesheet" href="css/site.css">
+<!-- ?v= on every local asset. GitHub Pages hands out a cache lifetime of its
+     own, so a visitor who has been here before can get this file fresh and the
+     stylesheet and scripts from cache. That pair is worse than either half
+     being old: the markup asks for behaviour the old script does not wire.
+     Bump the token on any publish that changes css/ or js/. -->
+<link rel="stylesheet" href="css/site.css?v=20260728c">
 </head>
 <body>
 
@@ -22,8 +27,7 @@
       <button class="part" role="tab" id="nav-data" data-part="data"
               aria-selected="false">Data</button>
       <button class="part" role="tab" id="nav-refs" data-part="refs"
-              aria-selected="false"><span class="tabfull">References</span><span
-              class="tabshort">Refs</span></button>
+              aria-selected="false">References</button>
     </div>
     <button class="themebtn" id="themebtn" type="button">theme</button>
   </div>
@@ -900,6 +904,12 @@
     <div class="card">
       <h2 id="strikeTitle">Pick a strike</h2>
       <p class="sub" id="strikeSub">Click any row above.</p>
+      <div id="svAudio" class="hidden">
+        <div class="frow">
+          <button class="btn" id="svPlay" type="button">&#9654;&nbsp; hear this strike</button>
+        </div>
+        <p class="sub" id="svPlayNote"></p>
+      </div>
       <div id="svBoot" class="loading hidden"></div>
       <div id="svPanels" class="svgrid hidden">
         <div class="plot" id="svWave"></div>
@@ -1024,13 +1034,13 @@
    document.write is deliberate: it keeps the load synchronous, so the app
    scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
-  '<script src="vendor/plotly-cartesian.min.js"><\/script>');
+  '<script src="vendor/plotly-cartesian.min.js?v=20260728c"><\/script>');
 </script>
-<script src="js/scrolly.js"></script>
-<script src="js/strikeview.js"></script>
-<script src="js/data.js"></script>
-<script src="js/poster.js"></script>
-<script src="js/method.js"></script>
-<script src="js/core.js"></script>
+<script src="js/scrolly.js?v=20260728c"></script>
+<script src="js/strikeview.js?v=20260728c"></script>
+<script src="js/data.js?v=20260728c"></script>
+<script src="js/poster.js?v=20260728c"></script>
+<script src="js/method.js?v=20260728c"></script>
+<script src="js/core.js?v=20260728c"></script>
 </body>
 </html>

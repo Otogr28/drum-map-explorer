@@ -84,14 +84,17 @@ img{max-width:100%}
 .part:hover{color:var(--ink);background:var(--panel2)}
 .part[aria-selected="true"]{color:var(--panel);background:var(--ink);
   font-weight:600}
-/* Four tabs plus the brand plus the theme button do not fit a phone. Below
-   620px the brand goes and the fourth tab uses its short name. */
-.tabshort{display:none}
+/* Four tabs plus the brand plus the theme button do not fit a phone, so the
+   brand goes first and then the tabs tighten. The labels stay whole: a tab
+   that hides half of itself in CSS reads as "ReferencesRefs" on any visit
+   that gets the markup and a stale stylesheet. */
 @media (max-width:620px){
   .brand{display:none}
   .part{padding:7px 10px;font-size:13px}
-  .tabfull{display:none}
-  .tabshort{display:inline}
+}
+@media (max-width:420px){
+  .topnav .inner{gap:6px;padding:0 8px}
+  .part{padding:6px 7px;font-size:12px}
 }
 .themebtn{background:var(--panel);border:1px solid var(--line);color:var(--ink2);
   border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}
