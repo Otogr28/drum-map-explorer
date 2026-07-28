@@ -305,7 +305,15 @@ img{max-width:100%}
 #exScope{display:block;width:100%;height:100%}
 .scopetag{position:absolute;right:9px;top:6px;font-family:var(--mono);
   font-size:10.5px;color:var(--muted);pointer-events:none}
+.scopetag .railed{color:var(--amber);font-weight:600;
+  background:color-mix(in srgb,var(--amber) 14%,transparent);
+  border-radius:999px;padding:1px 7px}
 .playopts{margin-top:11px;gap:7px 12px}
+/* The one thing a listener gets wrong unprompted is what they are listening
+   to, so that line is ink and the small print stays small. */
+.playlede{margin-top:11px;font-size:13.5px;color:var(--ink2);max-width:60ch}
+.playlede b{color:var(--ink)}
+.playlede + .sub{margin-top:3px}
 .playopts .btn[disabled]{opacity:.4;cursor:default}
 
 /* one row per hit at the cell: the list is the strike selector */

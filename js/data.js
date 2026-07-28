@@ -155,26 +155,45 @@ function cellIndex(idxs){
   return m;
 }
 
-/* Never open on an empty right hand column. The centre of the head is where a
-   reader looks first and it is one of the cross-mounting anchors, so it is
-   also where the campaign hit hardest. */
-function defaultCell(){
-  if (_cells.has(ckey(0,0))) return {x:0, y:0};
-  let best = null, bd = Infinity;
-  for (const e of _cells.values()){
-    const d = e.x*e.x + e.y*e.y;
-    if (d < bd){ bd = d; best = e; }
-  }
-  return best ? {x:best.x, y:best.y} : null;
+/* Which hit to open on, and which cell it drags with it.
+
+   "The first one struck" was the old answer and it sounded bad. The centre of
+   the head rings hardest, so every hit there railed the amplifier: 18 of the
+   101 cells have nothing but railed records, and opening on the centre meant
+   the first thing anybody heard was distortion the drum never made.
+
+   Rank instead: kept over rejected, clean over railed, least time at the rail
+   among the railed, then the best signal to noise. On this campaign that opens
+   on a 4.2 V hit at r/a 0.80 with a 430 ms ring-down, which is what the head
+   actually sounds like. */
+function rankHits(list){
+  return list.slice().sort((a,b)=>{
+    const A = DATA.strikes[a], B = DATA.strikes[b];
+    const good = r => (r.used && !r.jam) ? 0 : 1;
+    if (good(A) !== good(B)) return good(A) - good(B);
+    if (A.clipped !== B.clipped) return A.clipped ? 1 : -1;
+    const ra = A.rail_ms || 0, rb = B.rail_ms || 0;
+    if (ra !== rb) return ra - rb;
+    const sa = A.snr_db === null ? -1e9 : A.snr_db;
+    const sb = B.snr_db === null ? -1e9 : B.snr_db;
+    return sb - sa;
+  });
+}
+const bestHit = (list) => list.length ? rankHits(list)[0] : null;
+
+function defaultCell(idxs){
+  const i = bestHit(idxs);
+  if (i === null) return null;
+  const r = DATA.strikes[i];
+  return {x:r.x, y:r.y};
 }
 
 function drawExplore(idxs){
   _cells = cellIndex(idxs);
-  if (!S.cell || !_cells.has(ckey(S.cell.x, S.cell.y))) S.cell = defaultCell();
+  if (!S.cell || !_cells.has(ckey(S.cell.x, S.cell.y))) S.cell = defaultCell(idxs);
   const e = S.cell ? _cells.get(ckey(S.cell.x, S.cell.y)) : null;
   const list = e ? e.list : [];
-  if (S.strike === null || list.indexOf(S.strike) < 0)
-    S.strike = list.length ? list[0] : null;
+  if (S.strike === null || list.indexOf(S.strike) < 0) S.strike = bestHit(list);
 
   const M = METRICS[S.emetric];
   heatmap("exMap", accOf(S.emetric, idxs), {
@@ -199,9 +218,10 @@ function drawExplore(idxs){
   $("exTitle").textContent = `The cell at (${e.x}, ${e.y}) mm`;
   $("exSub").innerHTML = `<b>${list.length}</b> hit`+
     (list.length === 1 ? "" : "s") + ` here, at r/a ${r0.r_over_a.toFixed(2)}`+
-    (mounts > 1 ? `, from ${mounts} mountings` : ``) + `. `+
-    (nclip ? `<b>${nclip}</b> of them railed the amplifier. ` : ``) +
-    `Press play to hear one.`;
+    (mounts > 1 ? `, from ${mounts} mountings` : ``) + `, in the order they `+
+    `were struck. ` +
+    (nclip ? `<b>${nclip}</b> railed the amplifier. ` : ``) +
+    (list.length > 1 ? `The cleanest one is picked for you.` : ``);
   renderHits(list);
   $("exPlay").disabled = S.strike === null;
   $("exAll").disabled = list.length < 2;
@@ -224,6 +244,17 @@ function renderHits(list){
       `&middot; T60 ${r.T60_ms} ms</span></button>`;
   }).join("") : `<p class="emptyhits">No hit at this cell passes the `+
     `filters.</p>`;
+  /* The list keeps the order the hits were struck and the cleanest one is
+     rarely the first, so at a cell with twelve of them the selected row can
+     open below the fold of its own scroll box. Bring it up, without moving
+     the page under the reader. */
+  const host = $("exHits"), sel = host.querySelector('.hit[aria-pressed="true"]');
+  if (sel){
+    const top = sel.offsetTop - host.offsetTop;
+    if (top < host.scrollTop ||
+        top + sel.offsetHeight > host.scrollTop + host.clientHeight)
+      host.scrollTop = Math.max(0, top - 8);
+  }
 }
 
 /* The panels are 31 kB a strike and a redraw of five plots, so they are only

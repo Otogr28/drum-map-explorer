@@ -77,12 +77,21 @@ link you can send.
 270 and 520 Hz, so a record already is an audible waveform. The player sends
 the raw counts to the speakers at the rate they were taken and sweeps a
 playhead across the waveform while they go, so the ring-down is visible and
-audible at once. Nothing is filtered, which means the mains hum is in there
-too, and every clip is normalised to its own peak, which means loudness in
-your ear says nothing about how hard the head was struck. Half speed is
-offered as an explicit choice and it drops the pitch an octave. A clipped
-record is announced as clipped, because the distortion you hear is the
-amplifier and not the drum.
+audible at once.
+
+What you are hearing is the **optical sensor, not a microphone**. Nobody is
+recording the room. Beyond that: nothing is filtered, so the mains hum is in
+there; every clip is levelled to its own peak, so loudness in your ear says
+nothing about how hard the head was struck; half speed is an explicit choice
+and it drops the pitch an octave; and a railed record is marked railed on the
+scope itself, because that distortion is the amplifier and not the drum.
+
+Which hit plays first is chosen, not taken in order. Kept over rejected, clean
+over railed, least time at the rail among the railed, then the best signal to
+noise. It matters: the centre of the head rings hardest, so every hit there
+railed, and 18 of the 101 cells have nothing but railed records. Opening on
+the first strike of the centre cell meant the first thing anybody heard was
+distortion the drum never made.
 
 The five panels behind a hit are the waveform with the raw trace, the mains
 trend, the cleaned display branch, the envelope and the onset, settled and

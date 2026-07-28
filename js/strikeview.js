@@ -512,21 +512,24 @@ const StrikeView = (() => {
     $("svNote").classList.remove("hidden");
   }
 
-  /* The caption under the player. It is written from the strike in hand, so a
-     clipped record says out loud that the distortion in your ear is the
-     amplifier and not the drum. */
+  /* The caption under the player. Five sentences of small print is a caption
+     nobody reads, so the one thing a listener will get wrong on their own goes
+     first and alone: this is the sensor, not a microphone. Nobody is hearing
+     the room. The rest is one line of small print, written from the strike in
+     hand, so a railed record says out loud that the distortion in your ear is
+     the amplifier and not the drum. */
   function playNote(d){
-    const el = $("exPlayNote");
+    const lede = $("exPlayLede"), el = $("exPlayNote");
+    if (lede) lede.innerHTML = `<b>Not a microphone.</b> This is the optical `+
+      `sensor watching the head: ${(d.n / d.fs * 1000).toFixed(0)} ms of raw `+
+      `pickup at ${(d.fs/1000).toFixed(0)}&nbsp;kHz.`;
     if (!el) return;
     el.innerHTML =
-      `${(d.n / d.fs * 1000).toFixed(0)} ms of the raw pickup, played at the `+
-      `${(d.fs/1000).toFixed(0)}&nbsp;kHz it was sampled at. Nothing is `+
-      `filtered, so the mains hum is in there too. Every clip is normalised to `+
-      `its own peak, which means how loud it sounds says nothing about how hard `+
-      `the head was struck.` +
-      (rate !== 1 ? ` Half speed puts the pitch an octave down.` : ``) +
-      (d.clip.clipped ? ` <b>This one railed the amplifier, and the flattened `+
-        `top is audible as distortion.</b>` : ``);
+      `Unfiltered, mains hum included. Levelled per clip, so loudness says `+
+      `nothing about how hard the head was struck.` +
+      (rate !== 1 ? ` Half speed, one octave down.` : ``) +
+      (d.clip.clipped ? ` <b>This one railed the amplifier: that distortion `+
+        `is ours, not the drum's.</b>` : ``);
   }
 
   function show(i){
@@ -549,9 +552,12 @@ const StrikeView = (() => {
         drawScope();
       }
       playNote(d);
+      /* The corner of the scope carries the one warning that has to survive
+         a reader who skips every caption on the page. */
       const tag = $("exScopeTag");
-      if (tag) tag.textContent =
-        `${(d.n/d.fs*1000).toFixed(0)} ms  ${(d.fs/1000).toFixed(0)} kHz`;
+      if (tag) tag.innerHTML = d.clip.clipped
+        ? `<span class="railed">railed ${d.clip.rail_ms.toFixed(1)} ms</span>`
+        : `${(d.n/d.fs*1000).toFixed(0)} ms`;
       render(d, r, i);
     };
     pending = i;
@@ -572,6 +578,7 @@ const StrikeView = (() => {
     drawScope();
     const tag = $("exScopeTag");
     if (tag) tag.textContent = "";
+    $("exPlayLede").innerHTML = "";
     $("exPlayNote").innerHTML = "";
     $("svPanels").classList.add("hidden");
     $("svNote").classList.add("hidden");
