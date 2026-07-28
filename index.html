@@ -5,946 +5,944 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#edece7">
-<meta name="description" content="Every strike of a full-drum vibration campaign: 424 strikes over 101 cells of a 50 mm TPU membrane, measured with a low-cost reflective optical sensor. Filter, slice and download the data.">
-<title>Drum map explorer &mdash; vibrations of a circular membrane</title>
-<style>
-/* ------------------------------------------------------------------ theme
-   The drumlab web idiom (the bench UI this campaign was run from): paper
-   background, mono for every number, strike-red / laser-purple accents,
-   sequential single-hue ramps for magnitude. Dark mode is its own set of
-   steps against the dark surface, not an automatic flip. */
-:root{
-  color-scheme:light;
-  --bg:#edece7; --panel:#ffffff; --panel2:#f7f6f2; --surface:#ffffff;
-  --ink:#17160f; --ink2:#52514e; --muted:#898781; --line:#d8d6cc;
-  --grid:#e1e0d9; --baseline:#c3c2b7;
-  --strike:#d62728; --laser:#9467bd; --amber:#e07b00;
-  --good:#0ca30c; --critical:#d03b3b;
-  --series1:#2a78d6; --series2:#eb6834;
-  --focus:#2a78d6;
-  --mono:ui-monospace,"JetBrains Mono","Cascadia Mono",Menlo,Consolas,monospace;
-  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-}
-@media (prefers-color-scheme:dark){
-  :root:where(:not([data-theme="light"])){
-    color-scheme:dark;
-    --bg:#0d0d0d; --panel:#1a1a19; --panel2:#222221; --surface:#1a1a19;
-    --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --line:#383835;
-    --grid:#2c2c2a; --baseline:#383835;
-    --strike:#e66767; --laser:#b191d6; --amber:#eda100;
-    --good:#0ca30c; --critical:#d03b3b;
-    --series1:#3987e5; --series2:#d95926;
-    --focus:#3987e5;
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#0d0d0d; --panel:#1a1a19; --panel2:#222221; --surface:#1a1a19;
-  --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --line:#383835;
-  --grid:#2c2c2a; --baseline:#383835;
-  --strike:#e66767; --laser:#b191d6; --amber:#eda100;
-  --good:#0ca30c; --critical:#d03b3b;
-  --series1:#3987e5; --series2:#d95926;
-  --focus:#3987e5;
-}
-
-*{box-sizing:border-box;margin:0;padding:0}
-html{-webkit-text-size-adjust:100%}
-body{background:var(--bg);color:var(--ink);font-family:var(--sans);
-  font-size:15px;line-height:1.5;padding:0 0 4rem}
-.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(12px,3vw,28px)}
-a{color:var(--series1)}
-:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-
-/* ------------------------------------------------------------------ header */
-header{padding:clamp(20px,4vw,40px) 0 14px}
-h1{font-size:clamp(21px,3.4vw,31px);line-height:1.2;font-weight:650;
-  letter-spacing:-0.01em;text-wrap:balance}
-.lede{color:var(--ink2);margin-top:9px;max-width:62ch;font-size:15px}
-.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:7px;
-  padding:7px 11px;min-width:78px}
-.stat b{display:block;font-size:19px;font-weight:650;line-height:1.15}
-.stat span{display:block;font-size:10.5px;letter-spacing:.07em;
-  text-transform:uppercase;color:var(--muted);margin-top:2px}
-.themebtn{position:absolute;top:14px;right:clamp(12px,3vw,28px);
-  background:var(--panel);border:1px solid var(--line);color:var(--ink2);
-  border-radius:7px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}
-.themebtn:hover{border-color:var(--ink2)}
-
-/* ----------------------------------------------------------------- filters */
-.filters{position:sticky;top:0;z-index:20;background:var(--bg);
-  border-bottom:1px solid var(--line);padding:10px 0 11px;margin-top:12px}
-.frow{display:flex;flex-wrap:wrap;gap:7px 16px;align-items:center}
-.fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.flabel{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--muted);margin-right:1px}
-.chip{font:inherit;font-size:12.5px;padding:4px 10px;border-radius:999px;
-  border:1px solid var(--line);background:var(--panel);color:var(--ink2);
-  cursor:pointer;white-space:nowrap;font-family:var(--mono)}
-.chip:hover{border-color:var(--ink2);background:var(--panel2)}
-.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);
-  color:var(--panel);font-weight:600}
-.chip.good[aria-pressed="true"]{background:var(--good);border-color:var(--good);
-  color:#fff}
-.chip.bad[aria-pressed="true"]{background:var(--critical);
-  border-color:var(--critical);color:#fff}
-.num{font-family:var(--mono);font-size:12.5px;color:var(--ink);
-  background:var(--panel);border:1px solid var(--line);border-radius:6px;
-  padding:4px 6px;width:5.4em}
-input[type=range]{accent-color:var(--series1);width:118px;vertical-align:middle}
-.btn{font:inherit;font-size:12.5px;padding:5px 11px;border-radius:7px;
-  border:1px solid var(--line);background:var(--panel);color:var(--ink);
-  cursor:pointer;text-decoration:none;display:inline-block}
-.btn:hover{border-color:var(--ink2);background:var(--panel2)}
-.btn.primary{background:var(--ink);border-color:var(--ink);color:var(--panel)}
-.count{font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
-.count b{color:var(--ink)}
-
-/* -------------------------------------------------------------------- tabs */
-.tabs{display:flex;gap:4px;margin:18px 0 0;border-bottom:1px solid var(--line)}
-.tab{font:inherit;font-size:14px;padding:9px 15px;background:none;border:0;
-  border-bottom:2px solid transparent;color:var(--ink2);cursor:pointer;
-  margin-bottom:-1px}
-.tab:hover{color:var(--ink)}
-.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);
-  font-weight:600}
-
-/* ------------------------------------------------------------------- cards */
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  padding:clamp(12px,2.2vw,20px);margin-top:16px}
-.card h2{font-size:16px;font-weight:650;letter-spacing:-0.005em}
-.card h3{font-size:13.5px;font-weight:650;margin-top:2px}
-.sub{color:var(--ink2);font-size:13px;margin-top:5px;max-width:74ch}
-.foot{color:var(--muted);font-size:12px;margin-top:12px;max-width:80ch}
-.grid3{display:grid;gap:14px;margin-top:12px;
-  grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
-.plot{width:100%;height:330px}
-.plot.tall{height:380px}
-.plot.wide{height:300px}
-/* the band map is one square panel; without a cap it stretches across the
-   whole card and the drum ends up a stamp in the middle */
-.bandbox{max-width:430px;margin-top:12px}
-.hidden{display:none!important}
-
-/* ------------------------------------------------------------------ tables */
-.tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);
-  border-radius:8px;max-height:460px;overflow-y:auto}
-table{border-collapse:collapse;width:100%;font-family:var(--mono);
-  font-size:12px;font-variant-numeric:tabular-nums}
-th,td{padding:5px 9px;text-align:right;white-space:nowrap;
-  border-bottom:1px solid var(--grid)}
-th:first-child,td:first-child,th.l,td.l{text-align:left}
-thead th{position:sticky;top:0;background:var(--panel2);color:var(--ink2);
-  font-weight:600;cursor:pointer;font-size:11px;letter-spacing:.03em;z-index:1}
-thead th:hover{color:var(--ink)}
-tbody tr{cursor:pointer}
-tbody tr:hover{background:var(--panel2)}
-tbody tr[aria-selected="true"]{background:color-mix(in srgb,var(--series1) 14%,transparent)}
-td.pill span{display:inline-block;padding:1px 7px;border-radius:999px;
-  font-size:10.5px;font-weight:600}
-.ok span{background:color-mix(in srgb,var(--good) 16%,transparent);
-  color:var(--good)}
-.no span{background:color-mix(in srgb,var(--critical) 16%,transparent);
-  color:var(--critical)}
-
-/* ------------------------------------------------------------------ notice */
-.note{border-left:3px solid var(--amber);
-  background:color-mix(in srgb,var(--amber) 8%,transparent);
-  padding:9px 13px;border-radius:0 7px 7px 0;font-size:12.5px;
-  color:var(--ink2);margin-top:12px;max-width:80ch}
-.note b{color:var(--ink)}
-.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:12px;
-  color:var(--ink2);font-family:var(--mono)}
-.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;
-  margin-right:5px;vertical-align:-1px;border:2px solid}
-.lg-strike i{border-color:var(--strike)}
-.lg-laser i{border-color:var(--laser);background:color-mix(in srgb,var(--laser) 33%,transparent)}
-.lg-clip i{width:6px;height:6px;border:0;background:var(--ink2);
-  margin:0 8px 0 3px}
-footer{color:var(--muted);font-size:12px;margin-top:30px;padding-top:16px;
-  border-top:1px solid var(--line)}
-footer ul{margin:8px 0 0 18px}
-footer li{margin-bottom:4px;max-width:82ch}
-.loading{padding:60px 0;text-align:center;color:var(--muted);
-  font-family:var(--mono);font-size:13px}
-</style>
+<meta name="description" content="The poster, the method and every strike: 424 strikes over 101 cells of a 50 mm TPU membrane, measured with a low-cost reflective optical sensor. Read the poster, see how a peak earns the name of a mode, then slice the data yourself.">
+<title>Vibrations of a circular membrane, measured with a dollar sensor</title>
+<link rel="stylesheet" href="css/site.css">
 </head>
 <body>
 
-<button class="themebtn" id="themebtn" type="button">theme</button>
-
-<div class="wrap">
-<header>
-  <h1>Drum map explorer</h1>
-  <p class="lede">Every strike of the full-drum campaign behind the poster
-    <em>Exploring the Vibrations of a Circular Membrane with a Low-Cost Optical
-    Sensor</em>. A 50&nbsp;mm 3D-printed TPU head, struck from below by a
-    solenoid on a two-axis stage, watched by a reflective optical sensor that
-    costs about a dollar. Slice it however you like, and take the data with
-    you.</p>
-  <div class="stats" id="stats"></div>
-</header>
-
-<div class="filters" id="filters">
-  <div class="frow">
-    <div class="fgroup"><span class="flabel">mounting</span><span id="fMount"></span></div>
-    <div class="fgroup"><span class="flabel">sensor station</span><span id="fStation"></span></div>
-    <div class="fgroup"><span class="flabel">verdict</span><span id="fVerdict"></span></div>
-    <div class="fgroup"><span class="flabel">clipped</span><span id="fClip"></span></div>
+<nav class="topnav">
+  <div class="inner">
+    <span class="brand">Circular membrane &middot; Gordon College</span>
+    <div class="parts" role="tablist">
+      <button class="part" role="tab" id="nav-poster" data-part="poster"
+              aria-selected="true">Poster</button>
+      <button class="part" role="tab" id="nav-method" data-part="method"
+              aria-selected="false">Method</button>
+      <button class="part" role="tab" id="nav-data" data-part="data"
+              aria-selected="false">Data</button>
+    </div>
+    <button class="themebtn" id="themebtn" type="button">theme</button>
   </div>
-  <div class="frow" style="margin-top:7px">
-    <div class="fgroup"><span class="flabel">r/a</span>
-      <input type="range" id="raMin" min="0" max="1" step="0.02" value="0"
-             aria-label="minimum r/a">
-      <input type="range" id="raMax" min="0" max="1" step="0.02" value="1"
-             aria-label="maximum r/a">
-      <span class="count" id="raOut">0.00 &ndash; 1.00</span>
-    </div>
-    <div class="fgroup hidden" id="bandGroup">
-      <span class="flabel">mode&nbsp;map band</span>
-      <input class="num" id="bandC" type="number" step="1" aria-label="band centre Hz">
-      <span class="count">&plusmn;</span>
-      <input class="num" id="bandW" type="number" step="1" min="2" max="60"
-             value="12" aria-label="band half width Hz">
-      <span class="count">Hz</span>
-    </div>
-    <div class="fgroup" style="margin-left:auto">
-      <span class="count" id="fCount"></span>
-      <button class="btn" id="reset" type="button">reset</button>
-      <a class="btn primary" id="dl" href="data/points.csv" download="drum_map_points.csv">download CSV</a>
-    </div>
-  </div>
-</div>
-
-<div class="tabs" role="tablist">
-  <button class="tab" role="tab" id="tab-map" data-view="map" aria-selected="true">Map</button>
-  <button class="tab" role="tab" id="tab-modes" data-view="modes" aria-selected="false">Modes</button>
-  <button class="tab" role="tab" id="tab-strikes" data-view="strikes" aria-selected="false">Strikes</button>
-</div>
+  <div class="progress"><i id="progressbar"></i></div>
+</nav>
 
 <div id="boot" class="loading">loading the campaign&hellip;</div>
 
-<main id="app" class="hidden">
+<div id="app" class="hidden">
 
-<!-- =============================================================== MAP === -->
-<section id="view-map" role="tabpanel" aria-labelledby="tab-map">
-  <div class="card">
-    <h2>The membrane, cell by cell</h2>
-    <p class="sub">Each square is one 4&nbsp;mm cell of the head, averaged over
-      every strike that survives the filters above. This is the poster's
-      figure, live.</p>
-    <div class="frow" style="margin-top:11px">
-      <span class="flabel">metric</span><span id="fMetric"></span>
-      <button class="btn" id="mapTableBtn" type="button"
-              style="margin-left:auto">table view</button>
+<!-- ==================================================================== -->
+<!-- ============================== POSTER ============================== -->
+<!-- ==================================================================== -->
+<div id="part-poster">
+<div class="wrap">
+
+  <header class="hero">
+    <div class="logos">
+      <img src="assets/gordon_logo.png" alt="Gordon College">
+      <img src="assets/nsf_logo.png" alt="National Science Foundation">
     </div>
-    <div class="grid3" id="mapPlots"></div>
-    <div class="legend" id="mapLegend">
-      <span class="lg-clip"><i></i>clipped cell (amplitude is a lower bound)</span>
-      <span>dashed ring: r/a = 0.48, the (1,1) antinode</span>
+    <h1 style="max-width:24ch">Exploring the Vibrations of a Circular Membrane
+      with a Low-Cost Optical Sensor</h1>
+    <div class="authors">Otoniel Matute Cruz, Oleksiy Svitelskiy (PI)</div>
+    <div class="affil">Department of Physics, Gordon College &middot;
+      Wenham, MA</div>
+    <div class="heroart">
+      <canvas class="membrane" width="300" height="300"
+              style="width:132px;height:132px;border-radius:50%;border:1px solid var(--line)"
+              aria-label="animated membrane mode"></canvas>
+      <p style="max-width:44ch;color:var(--ink2)">A drumhead never rings at a
+        single pitch. This is a map of every pitch one 50&nbsp;mm printed head
+        rings at, measured with an infrared sensor that costs about a dollar.</p>
     </div>
-    <div class="note" id="mapNote"></div>
-    <div class="tablewrap hidden" id="mapTable"></div>
-  </div>
-</section>
+    <div class="stats" id="posterStats"></div>
+    <div class="scrollcue"><i></i>scroll</div>
+  </header>
 
-<!-- ============================================================= MODES === -->
-<section id="view-modes" class="hidden" role="tabpanel" aria-labelledby="tab-modes">
-  <div class="card">
-    <h2>Ring-down spectrum</h2>
-    <p class="sub">The median tail spectrum of every selected strike, each
-      normalised to its own peak first so a hard hit cannot outvote a soft one.
-      The labelled peaks are the ones the campaign's own picker keeps.</p>
-    <div class="plot wide" id="specPlot"></div>
-    <div class="frow" style="margin-top:10px">
-      <span class="flabel">map this peak</span><span id="fMode"></span>
+  <!-- ---------------------------------------------------------- modes --- -->
+  <section class="chapter" id="ch-modes">
+    <div class="head">
+      <div class="kicker">Objectives and goals</div>
+      <h2>A circular membrane never rings at a single pitch</h2>
+      <p>It vibrates in a family of (m,&thinsp;n) modes, each with its own
+        frequency and its own pattern of moving and still regions. The shapes
+        below are the theory: the analytic mode shapes of an ideal clamped
+        circular membrane.</p>
     </div>
-  </div>
-  <div class="card">
-    <h2 id="bandTitle">Where that peak lives on the head</h2>
-    <p class="sub" id="bandSub"></p>
-    <div class="plot tall bandbox" id="bandPlot"></div>
-    <div class="note" id="bandNote"></div>
-  </div>
-</section>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The fundamental</h3>
+          <p>Strike a head anywhere and this is what dominates. The whole
+            surface moves together, fastest at the middle, pinned at the rim.
+            Everything else on this poster is measured against it.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>A still line appears</h3>
+          <p>Add one nodal diameter and half the head moves up while the other
+            half moves down. The line between them never moves at all. Strike
+            exactly there and you cannot excite this mode.</p>
+          <p>That last sentence turns out to be a test, and the
+            <a href="#part=method">Method</a> part fires it as a control.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Two lines, four quarters</h3>
+          <p>Each extra nodal diameter divides the head again. The frequency
+            climbs with the pattern, in a ratio fixed by the zeros of the
+            Bessel function and by nothing else.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Rings, not only lines</h3>
+          <p>Nodes also come as circles. Once you know the fundamental you can
+            predict where every one of these should sit, which is exactly what
+            this campaign set out to check on a printed head.</p>
+          <p><strong>Goal:</strong> build a low-cost, non-contact vibration
+            pickup from a reflective infrared sensor pair, and characterize it
+            by mapping the vibrations of a circular membrane's surface.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center">
+            <canvas class="membrane" width="300" height="300"
+                    style="width:min(78%,340px);aspect-ratio:1;border-radius:50%;border:1px solid var(--line)"
+                    aria-label="animated membrane mode"></canvas>
+          </div>
+          <figcaption id="modeCaption"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
 
-<!-- =========================================================== STRIKES === -->
-<section id="view-strikes" class="hidden" role="tabpanel" aria-labelledby="tab-strikes">
-  <div class="card">
-    <h2>Every strike</h2>
-    <p class="sub">One row per hit, in the order it was struck. Click a row to
-      see that strike's own ring-down spectrum against the median. Sort by any
-      column.</p>
-    <div class="tablewrap" id="strikeTable"></div>
-  </div>
-  <div class="card">
-    <h2 id="strikeTitle">Pick a strike</h2>
-    <p class="sub" id="strikeSub">Click any row above.</p>
-    <div class="plot wide" id="strikePlot"></div>
-  </div>
-</section>
+  <!-- ---------------------------------------------------------- sense --- -->
+  <section class="chapter" id="ch-sense">
+    <div class="head">
+      <div class="kicker">Background and setup</div>
+      <h2>How do you watch a drumhead without touching it</h2>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The usual instrument is expensive</h3>
+          <p>Mapping those patterns is normally the job of <strong>laser
+            Doppler vibrometry</strong>: precision optics at precision prices.
+            Shrinking that cost is an active research direction
+            (Li et&nbsp;al. 2022).</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Two questions shaped the experiment</h3>
+          <p>How to excite the head, and how to watch it. We weighed a speaker,
+            a magnetic coil and a mechanical strike, and settled on a small
+            <strong>solenoid</strong>.</p>
+          <ul>
+            <li>One sensor, one solenoid, and a <strong>fully 3D-printed
+              drum</strong>: body, clamp ring, striker mount.</li>
+            <li>A <strong>two-axis stage</strong> automates the campaign, and
+              four mountings cover the full head.</li>
+          </ul>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>What we did not use, and why</h3>
+          <p>A microphone hears the whole head and the room at once, so it
+            gives a pitch with no map. A high-speed camera resolves the shapes
+            (Worland 2010) at laser prices. <strong>Reflected light</strong>
+            was the cheap way to keep spatial detail.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The pickup</h3>
+          <p>Our pickup is the <strong>ST188</strong>, an infrared LED and
+            phototransistor pair sold for line-following robots. It watches a
+            <strong>broad radial patch</strong> of the head, not a single point
+            like a laser: excellent at finding the <strong>frequency</strong> a
+            membrane vibrates at, weaker at pinning a mode to one spot.</p>
+          <div class="keyline">The first good recordings looked like noise. We
+            were filtering that oscillation out of the trace when we recognized
+            it as the membrane.</div>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <img class="photo" id="senseExploded" src="assets/exploded.png"
+               alt="Exploded view: clamp ring, drum body, striker mount"
+               loading="lazy">
+          <img class="photo cover hidden" id="senseBench" src="assets/bench.jpg"
+               alt="The drum assembled on the two axis stage" loading="lazy">
+          <figcaption id="senseCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
 
-</main>
+  <!-- ---------------------------------------------------------- drift --- -->
+  <section class="chapter" id="ch-drift">
+    <div class="head">
+      <div class="kicker">The head</div>
+      <h2>The membrane will not hold still</h2>
+    </div>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>Every campaign measures its own fundamental</h3>
+          <p>We are using a <strong>3D-printed</strong> 50&nbsp;mm TPU
+            membrane, clamped between two rings and stretched by tightening
+            embedded screws. Its tension is neither continuous nor even, and
+            nothing measures it, and it drops as the material degrades over the
+            days.</p>
+          <p>This is 372 kept strikes, each one measured on its own. They land
+            on top of each other.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Three days, three fundamentals</h3>
+          <p>Freshly stretched the head rings at <strong>323&nbsp;Hz</strong>,
+            a day later at <strong>290&nbsp;Hz</strong> (this campaign), and by
+            the third day at <strong>270&nbsp;Hz</strong>.</p>
+          <p>Nothing was re-clamped in between. The head simply relaxes, which
+            is why no frequency on this site is quoted without the campaign it
+            came from.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>So the ladder is anchored, not assumed</h3>
+          <p>Only the <em>ratios</em> between modes are fixed by physics. Every
+            predicted frequency here is that ratio times the fundamental this
+            campaign measured for itself.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="driftPlot"></div>
+          <figcaption id="driftStat"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
 
-<footer id="honesty"></footer>
+  <!-- --------------------------------------------------------- strike --- -->
+  <section class="chapter" id="ch-strike">
+    <div class="head">
+      <div class="kicker">Data and results</div>
+      <h2>One strike</h2>
+      <p>The solenoid taps the head from below and the sensor watches the light
+        it reflects. This is a single hit, exactly as recorded.</p>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The hit</h3>
+          <p>A 15&nbsp;ms pulse, then the head is on its own. The trace is the
+            raw block from the converter, turned back into millivolts.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>It rings for about a third of a second</h3>
+          <p>The dotted envelope is the decay this project measured for this
+            strike, drawn back onto the signal it came from. TPU is heavily
+            damped, and it shows.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The same hit, as a spectrum</h3>
+          <p>Take everything after the tap and ask which frequencies are in it.
+            One strike carries the whole family at once.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The peaks the campaign keeps</h3>
+          <p>Three sit in the membrane band. The lowest one is not the drum at
+            all: it is electrical pickup, and it is labelled that way
+            everywhere on this site.</p>
+          <p>Which peaks get to be called modes is a set of rules, and they are
+            the whole of the <a href="#part=method">Method</a> part.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="strikeWave"></div>
+          <div class="plot hidden" id="strikeSpec"></div>
+          <figcaption id="strikeCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ map --- -->
+  <section class="chapter" id="ch-map">
+    <div class="head">
+      <div class="kicker">Data and results</div>
+      <h2>Then do it 424 times</h2>
+      <p>The stage moves the striker cell by cell across a 4&nbsp;mm grid. Each
+        square below is one place on the membrane, averaged over every strike
+        that landed there.</p>
+    </div>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>One mounting reaches one corner</h3>
+          <p>The stage cannot cover a 50&nbsp;mm head in one go, so the drum is
+            re-mounted and the reachable quadrant moves with it.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Two</h3>
+          <p>The mountings deliberately overlap on the x&nbsp;=&nbsp;0 and
+            y&nbsp;=&nbsp;0 strips. Those shared cells are the check that the
+            four quadrants can be glued together at all.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Four mountings, 101 cells</h3>
+          <p>424 strikes fired, 372 kept. The dots mark cells where a hit
+            railed the amplifier, so their amplitude is a
+            <strong>censored lower bound</strong> and not a measurement.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The same cells, coloured by how long they ring</h3>
+          <p>Amplitude says how hard a place moves. Decay says how long it
+            keeps moving. They are not the same map, and the difference is
+            where the damping of a printed head shows up.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="posterMap" style="flex:1"></div>
+          <figcaption id="mapCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- peaks --- -->
+  <section class="chapter" id="ch-peaks">
+    <div class="head">
+      <div class="kicker">Data and results</div>
+      <h2>Three peaks share the head</h2>
+      <p>Take one narrow band of frequency at a time and ask how loud it is at
+        every cell. Each map is scaled to its own maximum, so what matters here
+        is the pattern and not the brightness.</p>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>289 Hz, the fundamental</h3>
+          <p>Loud in the middle, dark at the rim. This is the mode the whole
+            Bessel ladder is anchored on, and it behaves exactly as a
+            fundamental should.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>467 Hz, under study</h3>
+          <p>The ladder anchored on 290&nbsp;Hz predicts the (1,1) mode near
+            <strong>462&nbsp;Hz</strong>. Two peaks turn up instead of one, and
+            neither is a confirmed identification.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>508 Hz, under study</h3>
+          <p>A split pair is what an unevenly tensioned head looks like, and
+            this head is unevenly tensioned by construction. That is a
+            hypothesis, not a result. The
+            <a href="#part=method">placebo test</a> has not confirmed either
+            peak.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>31 Hz is not the drum</h3>
+          <p>Mains and light flicker reach the sensor as well. It is labelled
+            electrical everywhere it appears, and it is never counted as a
+            mode.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="stagepair">
+            <div class="plot" id="peakSpec"></div>
+            <div class="plot" id="peakBand"></div>
+          </div>
+          <figcaption id="peakCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ----------------------------------------------------------- open --- -->
+  <section class="chapter" id="ch-open">
+    <div class="head">
+      <div class="kicker">Conclusion and future work</div>
+      <h2>What is settled and what is not</h2>
+    </div>
+
+    <div class="card">
+      <h3>Settled</h3>
+      <ul style="margin:9px 0 0 17px;color:var(--ink2)">
+        <li>A reflective sensor costing about a dollar measures a printed
+          drumhead's fundamental to about a hertz, over 372 strikes and four
+          separate mountings.</li>
+        <li>Cells that more than one mounting visited agree well enough to glue
+          four quadrants into one map. The number is in the
+          <a href="#part=method">Method</a> part.</li>
+        <li>The head's tension drifts from day to day, so every campaign has to
+          re-measure its own fundamental.</li>
+      </ul>
+      <h3 style="margin-top:16px">Open</h3>
+      <ul style="margin:9px 0 0 17px;color:var(--ink2)">
+        <li><strong>467 and 508&nbsp;Hz.</strong> Theory anchored on this
+          campaign predicts one mode near 462&nbsp;Hz. Two peaks are there and
+          the split is not explained.</li>
+        <li><strong>Damping.</strong> Two independent ways of measuring the
+          decay disagree on more than half the strikes, so no damping number is
+          claimed here.</li>
+        <li><strong>The lobe axis.</strong> The 23&deg; axis this project uses
+          was measured on the previous membrane and has never been re-measured
+          on the TPU head.</li>
+      </ul>
+      <div class="note draft">
+        <b>Draft, for the operator.</b> The conclusion and future work boxes on
+        the printed poster are deliberately empty and are his to write. The
+        idea he wrote in his own log, kept here verbatim so it is not lost:
+        <em>this measurement method could end up cheaply replacing laser
+        Doppler vibrometry in cases where ultra precision is not needed but
+        rather knowing the more general vibration of an object, such as its
+        fundamental frequency, or detecting unwanted vibrations.</em>
+      </div>
+    </div>
+
+    <div class="endgrid">
+      <div>
+        <h3>Acknowledgements</h3>
+        <p style="color:var(--ink2);font-size:14px">Dr.&nbsp;Oleksiy Svitelskiy
+          (PI): guidance and lab support.<br>
+          Department of Physics, Gordon College.<br>
+          Summer Research Internship 2026.</p>
+      </div>
+      <div>
+        <h3>References</h3>
+        <ul class="refs">
+          <li>Rothberg et&nbsp;al., <em>Opt. Lasers Eng.</em> (2017): laser
+            Doppler vibrometry review.</li>
+          <li>Li, Dieussaert &amp; Baets, <em>Sensors</em> (2022): miniaturizing
+            optical vibrometry.</li>
+          <li>Worland, <em>J. Acoust. Soc. Am.</em> (2010): drumhead mode maps
+            by ESPI.</li>
+          <li>Schroeder, <em>J. Acoust. Soc. Am.</em> (1965): decay by backward
+            integration.</li>
+          <li>ST188 and MCP6002 datasheets.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cta">
+      <button class="btn primary part" data-part="method" type="button">
+        How a peak earns the name of a mode</button>
+      <button class="btn part" data-part="data" type="button">
+        Explore all 424 strikes</button>
+      <a class="btn" href="data/points.csv" download="drum_map_points.csv">
+        download the CSV</a>
+    </div>
+  </section>
+
 </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- ============================== METHOD ============================== -->
+<!-- ==================================================================== -->
+<div id="part-method" class="hidden">
+<div class="wrap">
+
+  <header class="hero" style="min-height:auto;padding:44px 0 20px">
+    <div class="kicker">Method</div>
+    <h1 style="max-width:20ch">How a peak earns the right to be called a
+      mode</h1>
+    <p class="lede" style="max-width:62ch;margin-top:16px;color:var(--ink2);
+       font-size:16px">A drumhead spectrum has bumps in it. Most of them are
+      not modes. What follows is every rule this project uses to tell the
+      difference, each one drawn on the campaign's own data, and two of them
+      with the threshold left in your hands.</p>
+    <div class="scrollcue"><i></i>scroll</div>
+  </header>
+
+  <!-- --------------------------------------------------------- branch --- -->
+  <section class="chapter" id="ch-branch">
+    <div class="head">
+      <div class="kicker">Rule one</div>
+      <h2>Measure on one branch, look at the other</h2>
+      <p>Cleaning a signal enough to see it and cleaning it enough to measure
+        it are different jobs. This project keeps them apart on purpose.</p>
+    </div>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>What the converter recorded</h3>
+          <p>A 14-bit block at 8&nbsp;kHz, 300&nbsp;ms long, with a slice of
+            quiet before the hit. Nothing has been done to it yet.</p>
+          <p>That quiet slice is not padding. Every signal-to-noise number on
+            this site is the peak divided by the spread of those samples.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Despike</h3>
+          <p>A sample that sits more than five robust deviations away from its
+            neighbours is a converter glitch, and it is replaced by the local
+            median. The comparison is against a <strong>median</strong>, so one
+            bad sample cannot drag the test that judges it.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>High pass at 5 Hz, forwards and backwards</h3>
+          <p>The sensor also sees where the head is, not only how it moves, and
+            that drifts. The filter runs in both directions so the phase it
+            adds cancels: the onset of the strike stays exactly where it
+            happened.</p>
+          <p>This is the <strong>measurement branch</strong>. Every frequency,
+            amplitude and decay quoted anywhere on this site comes from
+            here.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The gate that never touches a number</h3>
+          <p>At the bench there is a fourth stage: a spectral gate that pushes
+            anything close to the noise floor down by 30&nbsp;dB. It makes a
+            faint strike visible on screen.</p>
+          <p>It is also a liar about amplitude and about decay, so it is
+            <strong>display only</strong>. Nothing is ever measured on the
+            gated branch.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="branchPlot" style="flex:1"></div>
+          <div class="pipe" id="branchPipe"></div>
+          <figcaption id="branchCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- floor --- -->
+  <section class="chapter" id="ch-floor">
+    <div class="head">
+      <div class="kicker">Rule two</div>
+      <h2>A peak has to stand above its own neighbourhood</h2>
+      <p>Not above zero, and not above some fixed number. Above the noise
+        floor measured right where the peak is.</p>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The spectrum of the whole campaign</h3>
+          <p>Every kept strike, each normalised to its own peak first so a hard
+            hit cannot outvote a soft one, then combined by
+            <strong>median</strong>. A median is used rather than a mean so a
+            single bad strike cannot invent a peak.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The floor, measured locally</h3>
+          <p>The dotted line is the running median of the spectrum over a
+            120&nbsp;Hz window. It follows the broad shape of the noise instead
+            of assuming it is flat, which matters because it is not.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The bar is 10 dB, and you can move it</h3>
+          <p>A candidate counts only if it stands 10&nbsp;dB above that local
+            floor. Drag the slider and watch peaks appear and vanish.</p>
+          <p>The point of showing you the knob is that the bar was fixed before
+            the answer was known. Turn it up and the real peaks are the last
+            ones standing.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Two regions are excluded outright</h3>
+          <p>Below 100&nbsp;Hz the hanging rig rings, sways and out-shouts the
+            head, so nothing there is ever read as a membrane mode.</p>
+          <p>The mains harmonics are notched 3&nbsp;Hz wide up to 360&nbsp;Hz,
+            and the harmonics notched are the ones actually
+            <strong>measured</strong> in that session, not an assumed 50 or 60
+            and its multiples.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="floorPlot" style="flex:1"></div>
+          <div class="knob locked" id="floorKnob">
+            <span>the bar</span>
+            <input type="range" id="floorSlider" min="0" max="30" step="1"
+                   aria-label="peak must clear the floor by, in dB">
+            <output id="floorOut"></output>
+            <span class="count" id="floorCount"></span>
+          </div>
+          <figcaption id="floorCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- valley --- -->
+  <section class="chapter" id="ch-valley">
+    <div class="head">
+      <div class="kicker">Rule three</div>
+      <h2>One ridge is one mode, however many bumps it has</h2>
+      <p>Applied here to the campaign median so you can watch it act. This
+        project has two pickers: this one runs on every strike, and the one in
+        the next rule chooses the campaign's published mode list. They do not
+        always keep the same peaks, and where they differ the site shows both
+        rather than picking a winner.</p>
+    </div>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The naive answer is wrong</h3>
+          <p>Rank every local maximum by height and the top of the list is not
+            five modes. It is one ridge and four of its own flank bins.</p>
+          <p>This actually happened. A run once reported its five strongest
+            modes as 323, 330, 315, 339 and 307&nbsp;Hz. That is one peak, read
+            five times.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Separation alone is not enough</h3>
+          <p>Demanding 8&nbsp;Hz between peaks removes the closest duplicates.
+            The gap is not made wider than that, because this rig has resolved
+            a real 8.8&nbsp;Hz split before and a wider rule would have thrown
+            it away.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Demand a valley between them</h3>
+          <p>Two peaks are two modes only if the spectrum dips at least
+            <strong>3&nbsp;dB below the weaker one</strong> somewhere between
+            them. A bump on the shoulder of a bigger peak never clears that,
+            however tall it looks on its own.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>What this rule refuses to do</h3>
+          <p>An earlier version of the picker reserved a slot for the strongest
+            peak above 100&nbsp;Hz, so that something in the membrane band
+            always got reported. That biases the detector toward the answer we
+            were hoping for, and it was removed. Peaks are ranked by magnitude,
+            each has to clear the floor, and nothing is injected.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="valleyPlot" style="flex:1"></div>
+          <figcaption id="valleyCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- contrast --- -->
+  <section class="chapter" id="ch-contrast">
+    <div class="head">
+      <div class="kicker">Rule four</div>
+      <h2>A mode cares where you hit it</h2>
+      <p>This is the test a spectrum alone cannot do, and the reason the whole
+        campaign is a map instead of a single measurement.</p>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>Nodes are the fingerprint</h3>
+          <p>A membrane mode has places that do not move. Strike a node and
+            that mode stays quiet, however hard the hit. A tone coming from the
+            room, or from the mains, has no such places.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The fundamental, mapped</h3>
+          <p>Bright in the middle, dark at the rim, and the ratio between the
+            bright and the dark parts of the map is a number: the 90th
+            percentile over the 10th.</p>
+          <p>Drag the frequency and watch the pattern collapse as soon as you
+            step off a real peak.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The electrical line, mapped</h3>
+          <p>The 31&nbsp;Hz line does not come from the drum, and its map is
+            drawn with the same code and the same scale as the others.</p>
+          <p>It is <strong>not</strong> flat. It is bright over part of the head
+            and its contrast number is high, which is the honest thing to
+            report and not the tidy one. Contrast alone would have let this
+            line through. What keeps it out is the 100&nbsp;Hz floor, where the
+            rig lives and no membrane mode does, plus the operator calling it
+            electrical at the bench.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The bar, and the trap it closes</h3>
+          <p>A candidate needs a contrast of 1.8 to survive, raised to 2.5 if
+            the peak sits at the <em>same</em> frequency under every mounting.
+            A drum mode moves when the head is re-tensioned. A room does
+            not.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="contrastMap" style="flex:1"></div>
+          <div class="knob locked" id="contrastKnob">
+            <span>band centre</span>
+            <input type="range" id="contrastSlider" min="30" max="890"
+                   step="2" aria-label="band centre frequency in Hz">
+            <output id="contrastOut"></output>
+          </div>
+          <div id="contrastVal"></div>
+          <figcaption id="contrastCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- placebo --- -->
+  <section class="chapter" id="ch-placebo">
+    <div class="head">
+      <div class="kicker">Rule five</div>
+      <h2>Strike the one place the mode cannot be</h2>
+      <p>Every rule so far asks whether a peak is there. This one asks whether
+        it is still there when it has no right to be.</p>
+    </div>
+    <div class="scrolly">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>The problem with a search window</h3>
+          <p>A hunt looks for a predicted mode within five percent of where the
+            ladder says it should be. At 700&nbsp;Hz that window is
+            &plusmn;35&nbsp;Hz wide, and anything inside it counts as a hit.</p>
+          <p>Repeating the same hunt three times does not help. It repeats the
+            same mislabel three times.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>So fire a control</h3>
+          <p>Every mode has somewhere it cannot be excited. For any mode with a
+            nodal diameter that place is the <strong>centre</strong>, which is a
+            node of both members of a split pair. For the ringed modes it is
+            the inner nodal circle.</p>
+          <p>The striker moves there. The sensor does not move at all, so the
+            only thing that changed is where the head was hit.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Compare the band with itself</h3>
+          <p>Each strike's level in the band is divided by that same strike's
+            own noise floor before anything is compared, which cancels how hard
+            the solenoid happened to hit.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>The rule, and what it caught</h3>
+          <p>A candidate is confirmed only if the <strong>median</strong> of the
+            real strikes beats the <strong>loudest</strong> of the nulls by
+            6&nbsp;dB. Median against maximum, deliberately, because the test
+            should be hard to pass and easy to fail.</p>
+          <p>The 468&nbsp;Hz candidate cleared its null by 2.3&nbsp;dB and was
+            marked SUSPECT. On another run the same candidate reached
+            5.8&nbsp;dB, which is still a fail. That near miss is why the bar
+            is a fixed number and not a judgement call.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="placeboPlot" style="flex:1"></div>
+          <div class="tablewrap hidden" id="placeboTable"></div>
+          <figcaption id="placeboCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+    <div class="note" id="placeboNote"></div>
+  </section>
+
+  <!-- ------------------------------------------------------- disagree --- -->
+  <section class="chapter" id="ch-disagree">
+    <div class="head">
+      <div class="kicker">Rule six</div>
+      <h2>Where two methods disagree, say so</h2>
+    </div>
+    <div class="scrolly flip">
+      <div class="steps">
+        <div class="step"><div class="body">
+          <h3>Two pickers, one strike</h3>
+          <p>One finds peaks in the spectrum. The other fits the tail as a sum
+            of decaying sinusoids and is not limited by the width of a
+            frequency bin. Where both land on the same frequency, that
+            frequency is trusted. Where only one does, it is a candidate.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Two decays, one ring-down</h3>
+          <p>One integrates the energy backwards from the end. The other fits a
+            straight line to the envelope in decibels. They should agree.</p>
+          <p>They do not agree often enough, and that is why the poster shows
+            how long the head rings without putting a damping number on it.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>A clipped strike is a lower bound</h3>
+          <p>Hit the middle hard and the amplifier runs out of room. The peak
+            is then whatever the rail is, which is not a measurement of the
+            drum. Those strikes are kept, marked, and never averaged as if
+            they were.</p>
+        </div></div>
+        <div class="step"><div class="body">
+          <h3>Does the map glue together</h3>
+          <p>Four mountings, four coordinate frames, one membrane. The overlap
+            strips are the only reason to believe the result is one map and not
+            four unrelated ones.</p>
+        </div></div>
+      </div>
+      <div class="sticky">
+        <figure class="stage">
+          <div class="plot" id="disagreePlot" style="flex:1"></div>
+          <figcaption id="disagreeCap"></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter">
+    <div class="head">
+      <div class="kicker">Reference</div>
+      <h2>Every threshold on one page</h2>
+      <p>These are the settings the campaign ran with. They are duplicated into
+        the exported data so this page cannot quote a rule the measurement was
+        not using.</p>
+    </div>
+    <div class="tablewrap" id="constTable" style="max-height:none"></div>
+    <div class="cta">
+      <button class="btn primary part" data-part="data" type="button">
+        Now go and check it on the data</button>
+      <button class="btn part" data-part="poster" type="button">
+        Back to the poster</button>
+    </div>
+  </section>
+
+</div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- =============================== DATA =============================== -->
+<!-- ==================================================================== -->
+<div class="filters hidden" id="filters">
+  <div class="wrap">
+    <div class="frow">
+      <div class="fgroup"><span class="flabel">mounting</span><span id="fMount"></span></div>
+      <div class="fgroup"><span class="flabel">sensor station</span><span id="fStation"></span></div>
+      <div class="fgroup"><span class="flabel">verdict</span><span id="fVerdict"></span></div>
+      <div class="fgroup"><span class="flabel">clipped</span><span id="fClip"></span></div>
+    </div>
+    <div class="frow" style="margin-top:7px">
+      <div class="fgroup"><span class="flabel">r/a</span>
+        <input type="range" id="raMin" min="0" max="1" step="0.02" value="0"
+               aria-label="minimum r/a">
+        <input type="range" id="raMax" min="0" max="1" step="0.02" value="1"
+               aria-label="maximum r/a">
+        <span class="count" id="raOut">0.00 &ndash; 1.00</span>
+      </div>
+      <div class="fgroup hidden" id="bandGroup">
+        <span class="flabel">mode&nbsp;map band</span>
+        <input class="num" id="bandC" type="number" step="1" aria-label="band centre Hz">
+        <span class="count">&plusmn;</span>
+        <input class="num" id="bandW" type="number" step="1" min="2" max="60"
+               value="12" aria-label="band half width Hz">
+        <span class="count">Hz</span>
+      </div>
+      <div class="fgroup" style="margin-left:auto">
+        <span class="count" id="fCount"></span>
+        <button class="btn" id="reset" type="button">reset</button>
+        <a class="btn primary" id="dl" href="data/points.csv" download="drum_map_points.csv">download CSV</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="part-data" class="hidden">
+<div class="wrap">
+
+  <header style="padding:22px 0 4px">
+    <h1 style="font-size:clamp(21px,3.4vw,31px);line-height:1.2;
+        font-weight:650">Every strike of the campaign</h1>
+    <p class="sub" style="max-width:64ch;font-size:15px">A 50&nbsp;mm
+      3D-printed TPU head, struck from below by a solenoid on a two-axis
+      stage, watched by a reflective optical sensor that costs about a dollar.
+      Slice it however you like, and take the data with you. Any view you set
+      up is a link you can send.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-map" data-view="map" aria-selected="true">Map</button>
+    <button class="tab" role="tab" id="tab-modes" data-view="modes" aria-selected="false">Modes</button>
+    <button class="tab" role="tab" id="tab-strikes" data-view="strikes" aria-selected="false">Strikes</button>
+  </div>
+
+  <main>
+  <section id="view-map" role="tabpanel" aria-labelledby="tab-map">
+    <div class="card">
+      <h2>The membrane, cell by cell</h2>
+      <p class="sub">Each square is one 4&nbsp;mm cell of the head, averaged
+        over every strike that survives the filters above. This is the poster's
+        figure, live.</p>
+      <div class="frow" style="margin-top:11px">
+        <span class="flabel">metric</span><span id="fMetric"></span>
+        <button class="btn" id="mapTableBtn" type="button"
+                style="margin-left:auto">table view</button>
+      </div>
+      <div class="grid3" id="mapPlots"></div>
+      <div class="legend" id="mapLegend">
+        <span class="lg-clip"><i></i>clipped cell (amplitude is a lower bound)</span>
+        <span>dashed ring: r/a = 0.48, the (1,1) antinode</span>
+      </div>
+      <div class="note" id="mapNote"></div>
+      <div class="tablewrap hidden" id="mapTable"></div>
+    </div>
+  </section>
+
+  <section id="view-modes" class="hidden" role="tabpanel" aria-labelledby="tab-modes">
+    <div class="card">
+      <h2>Ring-down spectrum</h2>
+      <p class="sub">The median tail spectrum of every selected strike, each
+        normalised to its own peak first so a hard hit cannot outvote a soft
+        one. The labelled peaks are the ones the campaign's own picker keeps,
+        by the rules in the <a href="#part=method">Method</a> part.</p>
+      <div class="plot wide" id="specPlot"></div>
+      <div class="frow" style="margin-top:10px">
+        <span class="flabel">map this peak</span><span id="fMode"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2 id="bandTitle">Where that peak lives on the head</h2>
+      <p class="sub" id="bandSub"></p>
+      <div class="plot tall bandbox" id="bandPlot"></div>
+      <div class="note" id="bandNote"></div>
+    </div>
+  </section>
+
+  <section id="view-strikes" class="hidden" role="tabpanel" aria-labelledby="tab-strikes">
+    <div class="card">
+      <h2>Every strike</h2>
+      <p class="sub">One row per hit, in the order it was struck. Click a row
+        to see that strike's own ring-down spectrum against the median. Sort by
+        any column.</p>
+      <div class="tablewrap" id="strikeTable"></div>
+    </div>
+    <div class="card">
+      <h2 id="strikeTitle">Pick a strike</h2>
+      <p class="sub" id="strikeSub">Click any row above.</p>
+      <div id="svBoot" class="loading hidden"></div>
+      <div id="svPanels" class="svgrid hidden">
+        <div class="plot" id="svWave"></div>
+        <div class="plot" id="svDecay"></div>
+        <div class="plot" id="svSpec"></div>
+        <div class="plot" id="svGram"></div>
+        <div class="plot" id="svRadar"></div>
+      </div>
+      <div class="note hidden" id="svNote"></div>
+      <h3 style="margin-top:20px">This strike against the whole selection</h3>
+      <p class="sub">The exported tail spectrum, the one the mode maps
+        integrate, next to the median of every strike passing the filters.</p>
+      <div class="plot wide" id="strikePlot"></div>
+    </div>
+  </section>
+  </main>
+
+</div>
+</div>
+
+<div class="wrap"><footer id="honesty"></footer></div>
+
+</div><!-- /app -->
 
 <script src="https://cdn.plot.ly/plotly-cartesian-2.35.2.min.js" charset="utf-8"></script>
 <script>
 /* Conference wifi blocks things. If the CDN did not answer, fall back to the
    copy that ships with this site, so a scanned QR never lands on a blank page.
    document.write is deliberate: it keeps the load synchronous, so the app
-   script below still finds window.Plotly. */
+   scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
   '<script src="vendor/plotly-cartesian.min.js"><\/script>');
 </script>
-<script>
-"use strict";
-
-/* ====================================================================== data
-   Three static files. Nothing else; there is no backend. */
-const DATA = {};
-const $ = (id) => document.getElementById(id);
-
-/* Sequential single-hue ramps, the same ones the bench figures use. On a dark
-   surface the ramp is reversed so "near zero" recedes toward the surface
-   instead of glowing. Never a rainbow. */
-const RAMPS = {
-  blue:  ["#cde2fb","#9ec5f4","#6da7ec","#3987e5","#256abf","#184f95","#0d366b"],
-  orange:["#fde3d7","#f9c4aa","#f3a077","#eb6834","#c94e1d","#9c3a12","#6f2809"],
-  aqua:  ["#d2f2e4","#a5e4c9","#6fd0a8","#1baf7a","#0f8a5e","#0a6a48","#064f35"],
-};
-const isDark = () => getComputedStyle(document.documentElement)
-  .getPropertyValue("color-scheme").trim().includes("dark");
-const cssv = (n) => getComputedStyle(document.documentElement)
-  .getPropertyValue(n).trim();
-function scale(hue){
-  const r = isDark() ? RAMPS[hue].slice().reverse() : RAMPS[hue];
-  return r.map((c,i)=>[i/(r.length-1), c]);
-}
-const MONO = 'ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace';
-const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-
-function baseLayout(extra){
-  const L = {
-    paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)",
-    font:{family:MONO, size:11, color:cssv("--ink2")},
-    margin:{l:44,r:8,t:34,b:38},
-    hoverlabel:{font:{family:MONO,size:12}, bgcolor:cssv("--panel"),
-                bordercolor:cssv("--line"), namelength:-1},
-    showlegend:false,
-  };
-  return Object.assign(L, extra||{});
-}
-const CFG = {responsive:true, displaylogo:false,
-  modeBarButtonsToRemove:["select2d","lasso2d","autoScale2d","toggleSpikelines"]};
-
-/* ===================================================================== state
-   Everything a reader can change lives here and round-trips through the URL
-   hash, so any view of this dataset is a link somebody can send. */
-const S = {
-  view:"map",
-  mounts:new Set(), stations:new Set(),
-  verdict:new Set(["used"]),       // poster default: the good strikes only
-  clip:"all",
-  raMin:0, raMax:1,
-  metric:"poster",
-  mode:1,                          // index into campaign.modes
-  bandC:null, bandW:12,
-  strike:null,
-  sort:{key:"i", dir:1},
-  mapTable:false,
-};
-
-function writeHash(){
-  const c = DATA.campaign;
-  const p = new URLSearchParams();
-  p.set("v", S.view);
-  if (S.mounts.size !== c.mounts.length) p.set("m",[...S.mounts].join(","));
-  if (S.stations.size !== c.stations_used.length) p.set("s",[...S.stations].join(","));
-  if (S.verdict.size !== 1 || !S.verdict.has("used")) p.set("u",[...S.verdict].join(","));
-  if (S.clip !== "all") p.set("c", S.clip);
-  if (S.raMin > 0 || S.raMax < 1) p.set("ra", `${S.raMin},${S.raMax}`);
-  if (S.metric !== "poster") p.set("k", S.metric);
-  if (S.mode !== 1) p.set("p", String(S.mode));
-  if (S.bandW !== 12) p.set("bw", String(S.bandW));
-  if (S.bandC !== null) p.set("bc", String(S.bandC));
-  if (S.strike !== null) p.set("x", String(S.strike));
-  history.replaceState(null,"", "#"+p.toString());
-}
-function readHash(){
-  const c = DATA.campaign;
-  const p = new URLSearchParams(location.hash.slice(1));
-  const list = (k, fb, cast) => p.has(k)
-    ? new Set(p.get(k).split(",").filter(Boolean).map(cast))
-    : new Set(fb);
-  S.view     = ["map","modes","strikes"].includes(p.get("v")) ? p.get("v") : "map";
-  S.mounts   = list("m", c.mounts.map(m=>"mount"+m.mount), String);
-  S.stations = list("s", c.stations_used, Number);
-  S.verdict  = list("u", ["used"], String);
-  S.clip     = ["all","yes","no"].includes(p.get("c")) ? p.get("c") : "all";
-  if (p.has("ra")){
-    const [a,b] = p.get("ra").split(",").map(Number);
-    if (isFinite(a)) S.raMin = a;
-    if (isFinite(b)) S.raMax = b;
-  }
-  if (p.has("k")) S.metric = p.get("k");
-  if (p.has("p")) S.mode = Math.max(0, Math.min(c.modes.length-1, +p.get("p")||0));
-  if (p.has("bw")) S.bandW = Math.max(2, Math.min(60, +p.get("bw")||12));
-  S.bandC = p.has("bc") ? +p.get("bc") : null;
-  S.strike = p.has("x") ? +p.get("x") : null;
-}
-
-/* ================================================================= filtering
-   Rejected strikes and jams are never dropped from the dataset; they are
-   filtered like anything else, and the default just happens to be the same
-   selection the poster figure uses. */
-function passes(r){
-  if (!S.mounts.has(r.mount)) return false;
-  if (r.station !== null && !S.stations.has(r.station)) return false;
-  const v = r.jam ? "jam" : (r.used ? "used" : "rejected");
-  if (!S.verdict.has(v)) return false;
-  if (S.clip === "yes" && !r.clipped) return false;
-  if (S.clip === "no" && r.clipped) return false;
-  const ra = r.r_over_a;
-  if (ra === null || ra < S.raMin - 1e-9 || ra > S.raMax + 1e-9) return false;
-  return true;
-}
-function selection(){
-  const out = [];
-  DATA.strikes.forEach((r,i)=>{ if (passes(r)) out.push(i); });
-  return out;
-}
-
-/* ============================================================ aggregation */
-const cellKey = (r) => `${r.x}|${r.y}`;
-
-function cellsOf(idxs, valueOf){
-  const acc = new Map();
-  for (const i of idxs){
-    const r = DATA.strikes[i], v = valueOf(r, i);
-    if (v === null || v === undefined || !isFinite(v)) continue;
-    const k = cellKey(r);
-    let e = acc.get(k);
-    if (!e){ e = {x:r.x, y:r.y, sum:0, n:0, clip:false}; acc.set(k, e); }
-    e.sum += v; e.n += 1; e.clip = e.clip || r.clipped;
-  }
-  for (const e of acc.values()) e.mean = e.sum / e.n;
-  return acc;
-}
-
-/* The grid is fixed by the campaign (4 mm), not by the current filter, so the
-   membrane does not resize as cells drop out of the selection. */
-function grid(){
-  if (DATA._grid) return DATA._grid;
-  const xs = [...new Set(DATA.strikes.map(r=>r.x))].sort((a,b)=>a-b);
-  const ys = [...new Set(DATA.strikes.map(r=>r.y))].sort((a,b)=>a-b);
-  DATA._grid = {xs, ys,
-    ix:new Map(xs.map((v,i)=>[v,i])), iy:new Map(ys.map((v,i)=>[v,i]))};
-  return DATA._grid;
-}
-
-function zMatrix(acc){
-  const g = grid();
-  const z = g.ys.map(()=>g.xs.map(()=>null));
-  const n = g.ys.map(()=>g.xs.map(()=>0));
-  for (const e of acc.values()){
-    const r = g.iy.get(e.y), c = g.ix.get(e.x);
-    if (r === undefined || c === undefined) continue;
-    z[r][c] = e.mean; n[r][c] = e.n;
-  }
-  return {z, n, xs:g.xs, ys:g.ys};
-}
-
-/* ============================================================== spectra ==
-   spectra.json stores each strike normalised to its own peak and quantised;
-   `scale` puts the raw |F| back when a band amplitude needs real units. */
-const specOf = (i) => DATA.spectra.amp[i];
-const fAt = (k) => DATA.spectra.f0 + k * DATA.spectra.df;
-function freqAxis(){
-  if (DATA._f) return DATA._f;
-  DATA._f = Array.from({length:DATA.spectra.n}, (_,k)=>+fAt(k).toFixed(2));
-  return DATA._f;
-}
-function medianSpectrum(idxs){
-  const n = DATA.spectra.n, rows = idxs.filter(i=>specOf(i));
-  if (!rows.length) return null;
-  const out = new Float64Array(n), buf = new Float64Array(rows.length);
-  for (let k=0;k<n;k++){
-    for (let j=0;j<rows.length;j++) buf[j] = specOf(rows[j])[k];
-    const s = Array.prototype.slice.call(buf).sort((a,b)=>a-b);
-    const m = s.length >> 1;
-    out[k] = s.length % 2 ? s[m] : 0.5*(s[m-1]+s[m]);
-  }
-  const sc = DATA.spectra.amp_scale;
-  return Array.from(out, v => v/sc);
-}
-/* Per-cell band amplitude: mean raw |F| over fc +- half, averaged per cell,
-   then normalised to the map's own maximum. This is the SIMPLE version of the
-   poster's mode map (see the footnote under the figure). */
-function bandCells(idxs, fc, half){
-  const k0 = Math.max(0, Math.ceil((fc-half-DATA.spectra.f0)/DATA.spectra.df));
-  const k1 = Math.min(DATA.spectra.n-1,
-                      Math.floor((fc+half-DATA.spectra.f0)/DATA.spectra.df));
-  const sc = DATA.spectra.amp_scale;
-  return cellsOf(idxs, (r,i)=>{
-    const a = specOf(i);
-    if (!a || k1 < k0) return null;
-    let s = 0;
-    for (let k=k0;k<=k1;k++) s += a[k];
-    return (s/(k1-k0+1)) / sc * DATA.spectra.scale[i];
-  });
-}
-
-/* ================================================================== drawing */
-function drumShapes(){
-  const a = DATA.campaign.membrane.a_mm;
-  /* --muted is the one ink that reads on both surfaces, so the rim and the
-     antinode ring do not vanish when the page flips to dark. */
-  const ring = (r, dash, op) => ({type:"circle", xref:"x", yref:"y",
-    x0:-r, y0:-r, x1:r, y1:r, opacity:op,
-    line:{color:cssv("--muted"), width:dash?1.2:1.8, dash:dash||"solid"},
-    layer:"below"});
-  return [ring(a, null, 1), ring(0.48*a, "dash", 0.7)];
-}
-
-function heatmap(divId, acc, opts){
-  const {z, n, xs, ys} = zMatrix(acc);
-  const a = DATA.campaign.membrane.a_mm, lim = a + 2.5;
-  const custom = z.map((row,r)=>row.map((_,c)=>n[r][c]));
-  const traces = [{
-    type:"heatmap", x:xs, y:ys, z, customdata:custom,
-    colorscale:scale(opts.hue), xgap:2, ygap:2,   /* 2px surface gap, no borders */
-    hoverongaps:false,
-    colorbar:{title:{text:opts.unit, side:"right", font:{size:11}},
-      thickness:11, len:0.82, outlinewidth:0, tickfont:{size:10},
-      tickcolor:cssv("--baseline"), ticklen:3},
-    hovertemplate:`x %{x} mm &nbsp; y %{y} mm<br>`+
-      `<b>%{z:.4~s} ${opts.unit}</b><br>%{customdata} strike(s)<extra></extra>`,
-  }];
-  if (opts.clipped){
-    const cx = [], cy = [];
-    for (const e of acc.values()) if (e.clip){ cx.push(e.x); cy.push(e.y); }
-    if (cx.length) traces.push({type:"scatter", x:cx, y:cy, mode:"markers",
-      marker:{size:4, color:cssv("--ink2"), symbol:"circle"},
-      hovertemplate:"clipped: amplitude is a lower bound<extra></extra>"});
-  }
-  Plotly.react(divId, traces, baseLayout({
-    title:{text:opts.title, font:{family:SANS, size:14, color:cssv("--ink")},
-           x:0, xanchor:"left", y:0.97},
-    xaxis:{range:[-lim,lim], zeroline:false, showgrid:false, constrain:"domain",
-      tickfont:{size:10}, linecolor:cssv("--baseline"), ticks:"outside",
-      ticklen:3, tickcolor:cssv("--baseline"), title:{text:"x (mm)", standoff:6,
-      font:{size:10.5}}},
-    /* constrain:"domain" shrinks the PLOT AREA to the fixed +-lim range
-       instead of widening the range to fill the box, so all three panels
-       show the same millimetres however wide their tick labels are. */
-    yaxis:{range:[-lim,lim], zeroline:false, showgrid:false, scaleanchor:"x",
-      constrain:"domain",
-      tickfont:{size:10}, linecolor:cssv("--baseline"), ticks:"outside",
-      ticklen:3, tickcolor:cssv("--baseline"), title:{text:"y (mm)", standoff:4,
-      font:{size:10.5}}},
-    shapes:drumShapes(),
-    margin:{l:46,r:8,t:38,b:40},
-  }), Object.assign({}, CFG, {displayModeBar:false}));
-}
-
-const METRICS = {
-  pp:   {title:"Amplitude", unit:"mV",  hue:"blue",   get:r=>r.pp_mv,   clipped:true},
-  t60:  {title:"Decay T60", unit:"ms",  hue:"orange", get:r=>r.T60_ms},
-  mode1:{title:"Dominant mode", unit:"Hz", hue:"aqua",
-         get:r=>(r.modes_hz && r.modes_hz.length ? r.modes_hz[0] : null)},
-  snr:  {title:"Signal to noise", unit:"dB", hue:"blue", get:r=>r.snr_db},
-  r2:   {title:"Decay fit quality", unit:"r²", hue:"orange", get:r=>r.decay_r2},
-};
-
-function drawMap(idxs){
-  const keys = S.metric === "poster" ? ["pp","t60","mode1"] : [S.metric];
-  const host = $("mapPlots");
-  host.innerHTML = "";
-  /* Append EVERY panel before plotting any of them. Plotly sizes a plot from
-     the div's width at draw time, and in an auto-fit grid the first child is
-     briefly the full row wide - plotting inside the append loop drew panel 1
-     at 1180 px and then let CSS clip it. */
-  const divs = keys.map(k => {
-    const d = document.createElement("div");
-    d.className = "plot" + (keys.length === 1 ? " tall" : "");
-    d.id = "map_" + k;
-    host.appendChild(d);
-    return d;
-  });
-  keys.forEach((k,i)=>heatmap(divs[i].id, cellsOf(idxs, METRICS[k].get),
-                              METRICS[k]));
-  const acc = cellsOf(idxs, METRICS[keys[0]].get);
-  const nclip = [...acc.values()].filter(e=>e.clip).length;
-  $("mapNote").innerHTML = `<b>${acc.size}</b> of the campaign's `+
-    `${DATA.campaign.counts.cells} cells are in this slice`+
-    (nclip ? `, and <b>${nclip}</b> of them contain a strike that railed the `+
-      `amplifier &mdash; their amplitude is a censored <b>lower bound</b>, `+
-      `not a measurement.` : `. None of them clipped.`);
-  drawMapTable(idxs, keys);
-}
-
-/* The table-view twin: every number the colour carries, in text. */
-function drawMapTable(idxs, keys){
-  if (!S.mapTable){ $("mapTable").classList.add("hidden"); return; }
-  const accs = keys.map(k=>cellsOf(idxs, METRICS[k].get));
-  const cells = new Map();
-  accs.forEach((acc,j)=>{ for (const [k,e] of acc){
-    let row = cells.get(k);
-    if (!row){ row = {x:e.x, y:e.y, n:e.n, clip:e.clip, v:[]}; cells.set(k,row); }
-    row.v[j] = e.mean;
-  }});
-  const rows = [...cells.values()].sort((a,b)=>a.y-b.y || a.x-b.x);
-  const head = `<tr><th class="l">x (mm)</th><th>y (mm)</th><th>strikes</th>`+
-    keys.map(k=>`<th>${METRICS[k].title} (${METRICS[k].unit})</th>`).join("")+
-    `<th>clipped</th></tr>`;
-  const body = rows.map(r=>`<tr><td class="l">${r.x.toFixed(1)}</td>`+
-    `<td>${r.y.toFixed(1)}</td><td>${r.n}</td>`+
-    keys.map((_,j)=>`<td>${r.v[j]===undefined?"":fmt(r.v[j])}</td>`).join("")+
-    `<td class="pill ${r.clip?"no":"ok"}"><span>${r.clip?"yes":"no"}</span></td></tr>`
-  ).join("");
-  $("mapTable").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  $("mapTable").classList.remove("hidden");
-}
-const fmt = (v) => Math.abs(v) >= 100 ? v.toFixed(0)
-                 : Math.abs(v) >= 10  ? v.toFixed(1) : v.toFixed(3);
-
-/* ------------------------------------------------------------------ modes */
-function drawModes(idxs){
-  const med = medianSpectrum(idxs);
-  const f = freqAxis();
-  const traces = [];
-  if (med){
-    traces.push({type:"scatter", x:f, y:med, mode:"lines",
-      name:"median of the selection", line:{color:cssv("--series1"), width:2},
-      hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b> (rel.)<extra></extra>"});
-  }
-  const sel = S.strike !== null && specOf(S.strike);
-  if (sel){
-    const r = DATA.strikes[S.strike], sc = DATA.spectra.amp_scale;
-    traces.push({type:"scatter", x:f, y:Array.from(specOf(S.strike), v=>v/sc),
-      mode:"lines", name:`strike ${r.mount} #${r.strike} at (${r.x}, ${r.y})`,
-      line:{color:cssv("--series2"), width:1.6},
-      hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b> (rel.)<extra></extra>"});
-  }
-  const ann = [];
-  if (med) DATA.campaign.modes.forEach((m,i)=>{
-    const k = Math.round((m.hz - DATA.spectra.f0)/DATA.spectra.df);
-    if (k < 0 || k >= med.length) return;
-    const elec = m.kind === "electrical";
-    ann.push({x:m.hz, y:Math.log10(Math.max(med[k],1e-4)), xref:"x", yref:"y",
-      text:`<b>${m.hz.toFixed(0)} Hz</b>` + (elec ? "<br>electrical" : ""),
-      showarrow:true, arrowhead:0, arrowwidth:1, arrowcolor:cssv("--baseline"),
-      ax:0, ay:i===2 ? -46 : -26,
-      font:{family:MONO, size:elec?10.5:12.5, color:elec?cssv("--muted"):cssv("--ink")},
-      bgcolor:cssv("--panel"), bordercolor:"rgba(0,0,0,0)", borderpad:2});
-  });
-  Plotly.react("specPlot", traces, baseLayout({
-    showlegend: traces.length > 1,
-    legend:{orientation:"h", y:1.16, x:0, font:{size:11}, bgcolor:"rgba(0,0,0,0)"},
-    margin:{l:52, r:10, t:traces.length>1?52:26, b:44},
-    xaxis:{title:{text:"frequency (Hz)", font:{size:11}, standoff:6},
-      gridcolor:cssv("--grid"), zeroline:false, linecolor:cssv("--baseline"),
-      ticks:"outside", ticklen:3, tickcolor:cssv("--baseline")},
-    yaxis:{type:"log", title:{text:"ring-down amplitude (rel.)", font:{size:11},
-      standoff:8}, gridcolor:cssv("--grid"), zeroline:false, showticklabels:false,
-      linecolor:cssv("--baseline")},
-    annotations:ann,
-    hovermode:"x unified",
-  }), CFG);
-  drawBand(idxs);
-}
-
-function drawBand(idxs){
-  const m = DATA.campaign.modes[S.mode];
-  const fc = S.bandC === null ? m.hz : S.bandC;
-  const half = S.bandW;
-  const acc = bandCells(idxs, fc, half);
-  let mx = 0;
-  for (const e of acc.values()) mx = Math.max(mx, e.mean);
-  if (mx > 0) for (const e of acc.values()) e.mean = e.mean / mx;
-  heatmap("bandPlot", acc, {title:`${fc.toFixed(0)} Hz band`,
-    unit:"rel.", hue:"blue"});
-  const elec = m.kind === "electrical";
-  $("bandTitle").textContent = `Where the ${fc.toFixed(0)} Hz content sits on the head`;
-  $("bandSub").innerHTML = `Mean tail amplitude in ${fc.toFixed(0)} &plusmn; `+
-    `${half} Hz per cell, each map scaled to its own maximum. `+
-    (elec ? `This line is <b>electrical pickup</b>, not the drum: expect it to `+
-            `be flat, because it does not care where you hit.`
-          : `A real membrane mode has nodes &mdash; places where the map goes `+
-            `dark no matter how hard you hit them.`);
-  $("bandNote").innerHTML = `This is the <b>simple</b> band map: the mean of `+
-    `|F| over the band, per cell. The poster's figure uses the masked rank-1 `+
-    `factorisation, which additionally glues the three sensor stations onto `+
-    `one scale. The two agree in shape; they do not agree in absolute scale, `+
-    `and this one will look noisier wherever one station dominates a cell.`;
-}
-
-/* ---------------------------------------------------------------- strikes */
-/* Verdict and clipped sit EARLY, because they are the honesty columns and the
-   table is the one thing here wide enough to scroll sideways - the reader must
-   never have to go looking for "was this hit any good". The modes list is last
-   for the same reason: it is the column that may fall off the edge. */
-const COLS = [
-  {k:"i",      t:"#",        l:true, get:(r,i)=>i+1},
-  {k:"mount",  t:"mounting", l:true, get:r=>r.mount.replace("mount","M")},
-  {k:"verdict",t:"verdict",  l:true, pill:true,
-   get:r=>r.jam ? "jam" : (r.used ? "used" : "rejected"),
-   ok:r=>r.used && !r.jam},
-  {k:"clipped",t:"clipped",  l:true, pill:true,
-   get:r=>r.clipped ? "yes" : "no", ok:r=>!r.clipped},
-  {k:"x",      t:"x (mm)",   get:r=>r.x},
-  {k:"y",      t:"y (mm)",   get:r=>r.y},
-  {k:"r_over_a", t:"r/a",    get:r=>r.r_over_a, d:3},
-  {k:"station", t:"station", get:r=>r.station},
-  {k:"strike", t:"strike",   get:r=>r.strike},
-  {k:"pp_mv",  t:"pp (mV)",  get:r=>r.pp_mv, d:1},
-  {k:"peak_mv",t:"peak (mV)",get:r=>r.peak_mv, d:1},
-  {k:"snr_db", t:"SNR (dB)", get:r=>r.snr_db, d:1},
-  {k:"T60_ms", t:"T60 (ms)", get:r=>r.T60_ms, d:1},
-  {k:"decay_r2", t:"r²", get:r=>r.decay_r2, d:3},
-  {k:"modes",  t:"modes (Hz)", l:true,
-   get:r=>(r.modes_hz||[]).map(v=>v.toFixed(0)).join(" / ")},
-];
-
-function drawStrikes(idxs){
-  const rows = idxs.slice();
-  const c = COLS.find(c=>c.k === S.sort.key) || COLS[0];
-  rows.sort((a,b)=>{
-    const va = c.get(DATA.strikes[a], a), vb = c.get(DATA.strikes[b], b);
-    if (va === null) return 1;
-    if (vb === null) return -1;
-    return (va > vb ? 1 : va < vb ? -1 : 0) * S.sort.dir;
-  });
-  const head = `<tr>` + COLS.map(col=>{
-    const on = col.k === S.sort.key;
-    return `<th class="${col.l?"l":""}" data-sort="${col.k}">${col.t}`+
-      (on ? (S.sort.dir>0 ? " ↑" : " ↓") : "") + `</th>`;
-  }).join("") + `</tr>`;
-  const body = rows.map(i=>{
-    const r = DATA.strikes[i];
-    return `<tr data-i="${i}" aria-selected="${S.strike===i}">` + COLS.map(col=>{
-      let val = col.get(r, i);
-      if (col.pill)
-        return `<td class="l pill ${col.ok(r)?"ok":"no"}"><span>${val}</span></td>`;
-      if (typeof val === "number" && col.d !== undefined) val = val.toFixed(col.d);
-      return `<td class="${col.l?"l":""}">${val===null||val===undefined?"":val}</td>`;
-    }).join("") + `</tr>`;
-  }).join("");
-  $("strikeTable").innerHTML =
-    `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  drawStrikeSpec(idxs);
-}
-
-function drawStrikeSpec(idxs){
-  if (S.strike === null || !DATA.strikes[S.strike]){
-    $("strikeTitle").textContent = "Pick a strike";
-    $("strikeSub").textContent = "Click any row above.";
-    Plotly.purge("strikePlot");
-    return;
-  }
-  const r = DATA.strikes[S.strike], f = freqAxis();
-  const sc = DATA.spectra.amp_scale;
-  const med = medianSpectrum(idxs);
-  const traces = [];
-  if (med) traces.push({type:"scatter", x:f, y:med, mode:"lines",
-    name:"median of the selection", line:{color:cssv("--series1"), width:2},
-    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
-  if (specOf(S.strike)) traces.push({type:"scatter", x:f,
-    y:Array.from(specOf(S.strike), v=>v/sc), mode:"lines",
-    name:"this strike", line:{color:cssv("--series2"), width:1.8},
-    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
-  Plotly.react("strikePlot", traces, baseLayout({
-    showlegend:true,
-    legend:{orientation:"h", y:1.16, x:0, font:{size:11}, bgcolor:"rgba(0,0,0,0)"},
-    margin:{l:52,r:10,t:52,b:44},
-    xaxis:{title:{text:"frequency (Hz)", font:{size:11}, standoff:6},
-      gridcolor:cssv("--grid"), zeroline:false, linecolor:cssv("--baseline"),
-      ticks:"outside", ticklen:3, tickcolor:cssv("--baseline")},
-    yaxis:{type:"log", title:{text:"ring-down amplitude (rel.)", font:{size:11},
-      standoff:8}, gridcolor:cssv("--grid"), zeroline:false,
-      showticklabels:false, linecolor:cssv("--baseline")},
-    hovermode:"x unified",
-  }), CFG);
-  const v = r.jam ? "a jam" : (r.used ? "kept by the operator" : "REJECTED by the operator");
-  $("strikeTitle").textContent =
-    `${r.mount.replace("mount","Mounting ")} · strike ${r.strike} at (${r.x}, ${r.y}) mm`;
-  $("strikeSub").innerHTML = `r/a ${r.r_over_a} · sensor station `+
-    `${r.station} at (${r.sensor_x}, ${r.sensor_y}) mm · pp ${r.pp_mv} mV`+
-    (r.clipped ? ` <b>(clipped: lower bound)</b>` : ``) +
-    ` · T60 ${r.T60_ms} ms (r² ${r.decay_r2}) · ${v}.`;
-}
-
-/* ==================================================================== chips */
-function chips(host, items, isOn, onClick, cls){
-  host.innerHTML = "";
-  for (const it of items){
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip" + (cls ? " " + (it.cls || cls) : "");
-    b.textContent = it.label;
-    if (it.title) b.title = it.title;
-    b.setAttribute("aria-pressed", String(isOn(it)));
-    b.onclick = () => { onClick(it); render(); };
-    host.appendChild(b);
-  }
-}
-
-function buildFilters(){
-  const c = DATA.campaign;
-  chips($("fMount"), c.mounts.map(m=>({
-      id:"mount"+m.mount, label:"M"+m.mount, title:m.label})),
-    it=>S.mounts.has(it.id),
-    it=>{ toggle(S.mounts, it.id, c.mounts.map(m=>"mount"+m.mount)); });
-  chips($("fStation"), c.stations_used.map(s=>{
-      const st = c.stations[s-1] || {};
-      return {id:s, label:"S"+s,
-        title:`sensor at (${st.x}, ${st.y}) mm, r/a ${st.r_over_a}`};
-    }),
-    it=>S.stations.has(it.id),
-    it=>{ toggle(S.stations, it.id, c.stations_used); });
-  chips($("fVerdict"), [
-      {id:"used", label:"used", cls:"good", title:"the operator kept this hit"},
-      {id:"rejected", label:"rejected", cls:"bad",
-       title:"saved but rejected at the bench — shown, never hidden"},
-      {id:"jam", label:"jam", cls:"bad", title:"the plunger stuck"},
-    ], it=>S.verdict.has(it.id),
-    it=>{ toggle(S.verdict, it.id, ["used","rejected","jam"]); }, "x");
-  chips($("fClip"), [
-      {id:"all", label:"all"}, {id:"no", label:"clean"},
-      {id:"yes", label:"clipped", title:"the amplifier railed — amplitude is a lower bound"},
-    ], it=>S.clip === it.id, it=>{ S.clip = it.id; });
-  chips($("fMetric"), [
-      {id:"poster", label:"poster trio"},
-      {id:"pp", label:"amplitude"}, {id:"t60", label:"T60"},
-      {id:"mode1", label:"dominant mode"}, {id:"snr", label:"SNR"},
-      {id:"r2", label:"decay r²"},
-    ], it=>S.metric === it.id, it=>{ S.metric = it.id; });
-  chips($("fMode"), c.modes.map((m,i)=>({id:i,
-      label:`${m.hz.toFixed(0)} Hz`, title:`${m.label} — ${m.note}`})),
-    it=>S.mode === it.id, it=>{ S.mode = it.id; S.bandC = null;
-      $("bandC").value = c.modes[it.id].hz.toFixed(0); });
-}
-/* A filter with nothing selected shows nothing, which reads as a broken page.
-   Clearing the last chip therefore restores the full set. */
-function toggle(set, id, all){
-  if (set.has(id)) set.delete(id); else set.add(id);
-  if (!set.size) all.forEach(v=>set.add(v));
-}
-
-function buildStats(){
-  const c = DATA.campaign, k = c.counts;
-  const rows = [
-    [k.strikes, "strikes"], [k.used, "kept"], [k.cells, "cells"],
-    [k.mounts, "mountings"], [c.stations_used.length, "sensor stations"],
-    [c.anchor_hz.toFixed(0)+" Hz", "fundamental"],
-  ];
-  $("stats").innerHTML = rows.map(([v,l])=>
-    `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
-  $("honesty").innerHTML = `<b>How to read this honestly</b><ul>`+
-    c.honesty.map(h=>`<li>${h}</li>`).join("") +
-    `<li>Campaign <code>${c.run}</code>, measured ${c.date}. `+
-    `Membrane: ${c.membrane.diameter_mm} mm ${c.membrane.material}, `+
-    `${c.membrane.note}.</li>`+
-    `<li>Lobe axis ${c.axis_deg}&deg;: ${c.axis_note}.</li></ul>`;
-}
-
-/* =================================================================== render */
-function render(){
-  const idxs = selection();
-  $("fCount").innerHTML = `<b>${idxs.length}</b> / ${DATA.strikes.length} strikes`;
-  $("raOut").textContent = `${S.raMin.toFixed(2)} – ${S.raMax.toFixed(2)}`;
-  $("bandGroup").classList.toggle("hidden", S.view !== "modes");
-  for (const v of ["map","modes","strikes"]){
-    $("view-"+v).classList.toggle("hidden", v !== S.view);
-    $("tab-"+v).setAttribute("aria-selected", String(v === S.view));
-  }
-  buildFilters();
-  $("mapTableBtn").textContent = S.mapTable ? "hide table" : "table view";
-  if (!idxs.length){
-    $("mapPlots").innerHTML = `<p class="sub">No strike matches these `+
-      `filters. Widen the r/a range, or press reset.</p>`;
-    ["specPlot","bandPlot","strikePlot"].forEach(id=>Plotly.purge(id));
-    $("strikeTable").innerHTML = "";
-    $("mapNote").innerHTML = "";
-    $("mapTable").classList.add("hidden");
-    $("mapLegend").classList.add("hidden");
-    writeHash();
-    return;
-  }
-  $("mapLegend").classList.remove("hidden");
-  if (S.view === "map") drawMap(idxs);
-  if (S.view === "modes") drawModes(idxs);
-  if (S.view === "strikes") drawStrikes(idxs);
-  writeHash();
-}
-
-/* ===================================================================== wire */
-function wire(){
-  document.querySelectorAll(".tab").forEach(t=>{
-    t.onclick = () => { S.view = t.dataset.view; render(); };
-  });
-  $("raMin").oninput = e => {
-    S.raMin = Math.min(+e.target.value, S.raMax); e.target.value = S.raMin; render(); };
-  $("raMax").oninput = e => {
-    S.raMax = Math.max(+e.target.value, S.raMin); e.target.value = S.raMax; render(); };
-  $("bandC").onchange = e => {
-    const v = +e.target.value;
-    S.bandC = isFinite(v) && v > 0 ? v : null; render(); };
-  $("bandW").onchange = e => {
-    S.bandW = Math.max(2, Math.min(60, +e.target.value || 12));
-    e.target.value = S.bandW; render(); };
-  $("mapTableBtn").onclick = () => { S.mapTable = !S.mapTable; render(); };
-  $("reset").onclick = () => {
-    location.hash = ""; readHash(); syncInputs(); render(); };
-  $("strikeTable").onclick = (e) => {
-    const th = e.target.closest("th[data-sort]");
-    if (th){
-      const k = th.dataset.sort;
-      S.sort = {key:k, dir: S.sort.key === k ? -S.sort.dir : 1};
-      render(); return;
-    }
-    const tr = e.target.closest("tr[data-i]");
-    if (tr){ S.strike = +tr.dataset.i; render(); }
-  };
-  $("themebtn").onclick = () => {
-    const dark = isDark();
-    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
-    render();
-  };
-  window.matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", () => {
-      if (!document.documentElement.hasAttribute("data-theme")) render(); });
-}
-function syncInputs(){
-  $("raMin").value = S.raMin; $("raMax").value = S.raMax;
-  $("bandW").value = S.bandW;
-  $("bandC").value = (S.bandC === null ? DATA.campaign.modes[S.mode].hz : S.bandC)
-    .toFixed(0);
-}
-
-/* ===================================================================== boot */
-Promise.all(["campaign","strikes","spectra"].map(n =>
-    fetch(`data/${n}.json`).then(r=>{
-      if (!r.ok) throw new Error(`data/${n}.json: ${r.status}`);
-      return r.json();
-    })))
-  .then(([campaign, strikes, spectra]) => {
-    DATA.campaign = campaign; DATA.strikes = strikes; DATA.spectra = spectra;
-    readHash();
-    buildStats();
-    wire();
-    syncInputs();
-    $("boot").classList.add("hidden");
-    $("app").classList.remove("hidden");
-    render();
-  })
-  .catch(err => {
-    $("boot").innerHTML = `could not load the data: ${err.message}`;
-    console.error(err);
-  });
-</script>
+<script src="js/scrolly.js"></script>
+<script src="js/strikeview.js"></script>
+<script src="js/data.js"></script>
+<script src="js/poster.js"></script>
+<script src="js/method.js"></script>
+<script src="js/core.js"></script>
 </body>
 </html>
