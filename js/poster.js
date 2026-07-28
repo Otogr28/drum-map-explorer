@@ -51,9 +51,16 @@ const Poster = (() => {
   }
 
   const NR = 16, NTH = 40;             /* rings and spokes: 640 quads a frame */
+  const ZS = 0.40;                     /* height of the relief, in disc radii */
   /* Two canvases share one surface and one clock: the hero's small one and
-     the chapter's big one. Only the chapter's is draggable. */
-  const surf = {mode:0, grid:null, raf:0, t:0, yaw:-0.5, tilt:0.62,
+     the chapter's big one. Only the chapter's is draggable.
+
+     `elev` is the angle the camera sits ABOVE the plane of the rim. At 24 deg
+     the disc foreshortens to about 40% of its width, which is what tells the
+     eye it is looking at a surface from above rather than at a flat drawing.
+     The first version used a near face-on view with no foreshortening and no
+     lighting, and a dome and a bowl projected to the same picture. */
+  const surf = {mode:0, grid:null, raf:0, t:0, yaw:-0.5, elev:0.42,
                 drag:null, canvas:null, canvases:[], dpr:1};
 
   /* The shape is fixed per mode, so it is built ONCE and a frame only scales
@@ -82,29 +89,63 @@ const Poster = (() => {
     surf.grid = pts;
   }
 
-  function project(p, amp, w, h){
+  /* One proper orthonormal camera: yaw about the drum's own axis, then an
+     elevation tilt. Orthonormal matters because the SAME transform lights the
+     surface, and a squashed one would tilt the highlights. */
+  function view(x, y, z){
     const cy = Math.cos(surf.yaw), sy = Math.sin(surf.yaw);
-    const ct = Math.cos(surf.tilt), st = Math.sin(surf.tilt);
-    const X = p.x * cy - p.y * sy;
-    const Y = p.x * sy + p.y * cy;
-    const Z = p.z * amp * 0.42;
-    const s = Math.min(w, h) * 0.44;
-    return {sx: w / 2 + X * s,
-            sy: h / 2 + (Y * ct - Z) * s * 0.92,
-            depth: Y * st + Z * 0.35};
+    const ce = Math.cos(surf.elev), se = Math.sin(surf.elev);
+    const x1 = x * cy - y * sy;
+    const y1 = x * sy + y * cy;
+    return {right: x1,
+            up:    z * ce - y1 * se,
+            depth: y1 * ce + z * se};
+  }
+
+  function project(p, amp, w, h){
+    const v = view(p.x, p.y, p.z * amp * ZS);
+    const s = Math.min(w, h) * 0.46;
+    return {sx: w / 2 + v.right * s, sy: h / 2 - v.up * s, depth: v.depth};
+  }
+
+  /* Lambert, with the light fixed to the CAMERA rather than to the drum, so
+     turning the surface does not drag the highlight around with it. This is
+     the cue that settles whether a lobe is coming at you or going away: with
+     flat fill the two are the same picture. */
+  const LIGHT = (() => {
+    const v = [-0.42, 0.68, 0.60];
+    const n = Math.hypot(v[0], v[1], v[2]);
+    return [v[0]/n, v[1]/n, v[2]/n];
+  })();
+
+  function lambert(A, B, C, D, amp){
+    /* the quad's normal from its diagonals, in view space */
+    const p = (q) => view(q.x, q.y, q.z * amp * ZS);
+    const a = p(A), b = p(B), c = p(C), d = p(D);
+    const u = [c.right - a.right, c.up - a.up, -(c.depth - a.depth)];
+    const v = [d.right - b.right, d.up - b.up, -(d.depth - b.depth)];
+    let nx = u[1]*v[2] - u[2]*v[1];
+    let ny = u[2]*v[0] - u[0]*v[2];
+    let nz = u[0]*v[1] - u[1]*v[0];
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len; ny /= len; nz /= len;
+    if (nz < 0){ nx = -nx; ny = -ny; nz = -nz; }   /* face the camera */
+    const dot = nx*LIGHT[0] + ny*LIGHT[1] + nz*LIGHT[2];
+    return 0.58 + 0.42 * Math.max(0, dot);
   }
 
   /* Diverging, from the site's own two series hues through the panel colour at
      zero. A membrane displacement has a sign, so a single hue ramp would throw
      half of it away. */
-  function shade(v){
+  function shade(v, lit){
     const up = [58, 135, 229], dn = [235, 104, 52];
     const base = isDark() ? [88, 88, 84] : [250, 250, 246];
     const t = Math.min(1, Math.abs(v) * 1.15);
     const c = v >= 0 ? up : dn;
-    return `rgb(${Math.round(base[0] + (c[0]-base[0]) * t)},`+
-           `${Math.round(base[1] + (c[1]-base[1]) * t)},`+
-           `${Math.round(base[2] + (c[2]-base[2]) * t)})`;
+    const k = lit === undefined ? 1 : lit;
+    const mix = (i) => Math.max(0, Math.min(255,
+      Math.round((base[i] + (c[i] - base[i]) * t) * k)));
+    return `rgb(${mix(0)},${mix(1)},${mix(2)})`;
   }
 
   function paint(){
@@ -128,9 +169,23 @@ const Poster = (() => {
         const d = project(g[i+1][j], amp, w, h);
         const cc = (g[i][j].c + g[i][j+1].c + g[i+1][j+1].c + g[i+1][j].c) / 4;
         quads.push({p:[a,b,c,d], v: cc,
+                    lit: lambert(g[i][j], g[i][j+1], g[i+1][j+1], g[i+1][j], amp),
                     depth: (a.depth + b.depth + c.depth + d.depth) / 4});
       }
     }
+    /* The rim, drawn flat at z = 0 before the surface. J_m(alpha_mn) is zero
+       at r = a for every mode, so the rim never moves: it is the one line in
+       the picture the reader can trust as the resting plane, and it settles
+       which way the lobes are going. */
+    ctx.beginPath();
+    for (let j = 0; j <= NTH; j++){
+      const q = project({x: g[NR][j].x, y: g[NR][j].y, z: 0}, 0, w, h);
+      if (j === 0) ctx.moveTo(q.sx, q.sy); else ctx.lineTo(q.sx, q.sy);
+    }
+    ctx.strokeStyle = isDark() ? "rgba(255,255,255,.22)" : "rgba(0,0,0,.20)";
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+
     /* painter's algorithm: far first, so near quads cover what is behind */
     quads.sort((p, q) => p.depth - q.depth);
     ctx.lineWidth = 0.6;
@@ -140,7 +195,7 @@ const Poster = (() => {
       ctx.moveTo(q.p[0].sx, q.p[0].sy);
       for (let k = 1; k < 4; k++) ctx.lineTo(q.p[k].sx, q.p[k].sy);
       ctx.closePath();
-      ctx.fillStyle = shade(q.v);
+      ctx.fillStyle = shade(q.v, q.lit);
       ctx.fill();
       ctx.stroke();
     }
@@ -195,14 +250,14 @@ const Poster = (() => {
     const cv = surf.canvas;
     const down = (e) => {
       const p = e.touches ? e.touches[0] : e;
-      surf.drag = {x:p.clientX, y:p.clientY, yaw:surf.yaw, tilt:surf.tilt};
+      surf.drag = {x:p.clientX, y:p.clientY, yaw:surf.yaw, elev:surf.elev};
     };
     const move = (e) => {
       if (!surf.drag) return;
       const p = e.touches ? e.touches[0] : e;
       surf.yaw = surf.drag.yaw + (p.clientX - surf.drag.x) * 0.01;
-      surf.tilt = Math.max(0.06, Math.min(1.45,
-        surf.drag.tilt + (p.clientY - surf.drag.y) * 0.006));
+      surf.elev = Math.max(0.10, Math.min(1.40,
+        surf.drag.elev + (p.clientY - surf.drag.y) * 0.006));
       if (e.cancelable) e.preventDefault();
       paint();
     };
