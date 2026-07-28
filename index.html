@@ -12,7 +12,7 @@
      stylesheet and scripts from cache. That pair is worse than either half
      being old: the markup asks for behaviour the old script does not wire.
      Bump the token on any publish that changes css/ or js/. -->
-<link rel="stylesheet" href="css/site.css?v=20260728e">
+<link rel="stylesheet" href="css/site.css?v=20260728f">
 </head>
 <body>
 
@@ -811,7 +811,7 @@
       <span class="count" id="fCount"></span>
       <span class="fsum" id="fSum"></span>
       <span class="fspacer"></span>
-      <button class="btn" id="reset" type="button">reset</button>
+      <button class="btn" id="reset" type="button">reset filters</button>
       <a class="btn primary" id="dl" href="data/points.csv"
          download="drum_map_points.csv">CSV</a>
     </div>
@@ -895,7 +895,11 @@
 
       <div class="exright">
         <div class="card cellcard">
-          <h2 id="exTitle">Pick a cell</h2>
+          <div class="cardhead">
+            <h2 id="exTitle">Pick a cell</h2>
+            <button class="btn" id="exReset" type="button" title="back to the
+              cell and the hit this page opens on">reset view</button>
+          </div>
           <p class="sub" id="exSub">Click a square on the head.</p>
 
           <!-- The player. The pickup samples at 8 kHz and the head rings
@@ -1116,13 +1120,13 @@
    document.write is deliberate: it keeps the load synchronous, so the app
    scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
-  '<script src="vendor/plotly-cartesian.min.js?v=20260728e"><\/script>');
+  '<script src="vendor/plotly-cartesian.min.js?v=20260728f"><\/script>');
 </script>
-<script src="js/scrolly.js?v=20260728e"></script>
-<script src="js/strikeview.js?v=20260728e"></script>
-<script src="js/data.js?v=20260728e"></script>
-<script src="js/poster.js?v=20260728e"></script>
-<script src="js/method.js?v=20260728e"></script>
-<script src="js/core.js?v=20260728e"></script>
+<script src="js/scrolly.js?v=20260728f"></script>
+<script src="js/strikeview.js?v=20260728f"></script>
+<script src="js/data.js?v=20260728f"></script>
+<script src="js/poster.js?v=20260728f"></script>
+<script src="js/method.js?v=20260728f"></script>
+<script src="js/core.js?v=20260728f"></script>
 </body>
 </html>

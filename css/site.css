@@ -281,6 +281,10 @@ img{max-width:100%}
 .exleft,.exright{min-width:0}
 .exleft{position:sticky;top:104px}
 .mapcard{outline-offset:3px}
+/* The heading and the way back out of wherever the reader has clicked to. */
+.cardhead{display:flex;align-items:flex-start;gap:10px}
+.cardhead h2{flex:1;min-width:0}
+.cardhead .btn{flex:0 0 auto;margin-top:-2px}
 /* The drum is the control, so it gets the height. A heatmap with a locked
    aspect ratio and a colour bar spends its width on both, and at 440 px the
    membrane itself came out smaller than the play button next to it. */

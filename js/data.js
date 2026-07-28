@@ -730,6 +730,17 @@ function wire(){
     const e = S.cell && _cells.get(ckey(S.cell.x, S.cell.y));
     if (e && e.list.length) StrikeView.playAll(e.list);
   };
+  /* Clicking around the head is a one way trip otherwise: the cell you started
+     on is not marked on the map any more and nobody remembers its
+     coordinates. This walks back to the cell and the hit the page opens on,
+     and leaves the filters alone. */
+  $("exReset").onclick = () => {
+    S.cell = null; S.strike = null;
+    StrikeView.stop();
+    StrikeView.clearGallery();
+    render();
+    $("exMapCard").focus({preventScroll:true});
+  };
   $("exCompare").onclick = () => {
     const e = S.cell && _cells.get(ckey(S.cell.x, S.cell.y));
     if (e) StrikeView.gallery(e.x, e.y, e.list);
