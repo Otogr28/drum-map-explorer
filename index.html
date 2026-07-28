@@ -12,7 +12,7 @@
      stylesheet and scripts from cache. That pair is worse than either half
      being old: the markup asks for behaviour the old script does not wire.
      Bump the token on any publish that changes css/ or js/. -->
-<link rel="stylesheet" href="css/site.css?v=20260728j">
+<link rel="stylesheet" href="css/site.css?v=20260728k">
 </head>
 <body>
 
@@ -107,7 +107,9 @@
             by mapping the vibrations of a circular membrane's surface.</p>
         </div></div>
       </div>
-      <div class="sticky">
+      <!-- `tight`: the mode surface is wide and flat, so on a phone it left a
+           third of the stage empty above and below it. -->
+      <div class="sticky tight">
         <figure class="stage">
           <div class="modebox">
             <canvas id="modeCanvas" aria-label="an animated vibration mode of
@@ -1118,13 +1120,13 @@
    document.write is deliberate: it keeps the load synchronous, so the app
    scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
-  '<script src="vendor/plotly-cartesian.min.js?v=20260728j"><\/script>');
+  '<script src="vendor/plotly-cartesian.min.js?v=20260728k"><\/script>');
 </script>
-<script src="js/scrolly.js?v=20260728j"></script>
-<script src="js/strikeview.js?v=20260728j"></script>
-<script src="js/data.js?v=20260728j"></script>
-<script src="js/poster.js?v=20260728j"></script>
-<script src="js/method.js?v=20260728j"></script>
-<script src="js/core.js?v=20260728j"></script>
+<script src="js/scrolly.js?v=20260728k"></script>
+<script src="js/strikeview.js?v=20260728k"></script>
+<script src="js/data.js?v=20260728k"></script>
+<script src="js/poster.js?v=20260728k"></script>
+<script src="js/method.js?v=20260728k"></script>
+<script src="js/core.js?v=20260728k"></script>
 </body>
 </html>

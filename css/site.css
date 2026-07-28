@@ -541,6 +541,10 @@ footer li{margin-bottom:4px;max-width:82ch}
   .scrolly .steps,.scrolly.flip .steps{order:1}
   .sticky{position:sticky;top:53px;height:52vh;z-index:5;
     background:var(--bg);padding:8px 0 4px}
+  /* The mode surface is a wide flat shape: at 52vh it drew about 90 px of
+     drum inside 250 px of canvas. Shorter box, same drum, more of the text
+     on screen next to it. */
+  .sticky.tight{height:40vh}
   .steps{margin-top:6px;padding-bottom:26vh}
   .step{min-height:56vh}
   .step:last-child{min-height:40vh}
