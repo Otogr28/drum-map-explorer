@@ -15,29 +15,209 @@
 const Poster = (() => {
 
   /* --------------------------------------------------------- mode shapes */
-  /* The four textbook shapes are the Wikimedia Commons "Drum vibration mode"
-     animations by Oleg Alexandrov, public domain, with the white background
-     floodfilled out so they sit on either theme. They are THEORY: an ideal
-     clamped circular membrane, not a measurement of this head, and the copy
-     above them says so. The credit line lives in index.html.
+  /* A real 3D surface, rendered here rather than shipped as an image.
+     z(r, theta, t) = J_m(alpha_mn r/a) cos(m theta) sin(wt), the ideal clamped
+     circular membrane. THEORY, not a measurement of this head.
 
-     They replaced a canvas that solved J_m(alpha_mn r/a) cos(m theta) live.
-     The operator asked for the Commons animations: this is a web page, they
-     are public domain, and they show the surface in three dimensions where the
-     canvas only had a top view. */
+     It replaced the Wikimedia Commons GIFs, which replaced an earlier flat
+     canvas. The GIFs were public domain and correct, but they are 246 px wide
+     with a baked-in white background and a baked-in caption: keying the
+     background out left a pale fringe on every edge, the caption inverted
+     against the dark theme, and blowing them up to fill the stage made the
+     whole thing mushy. A surface drawn at the device's own resolution is crisp
+     at any size, follows the theme, costs no bytes, and can be dragged. */
+
+  const ALPHA = {"0,1":2.404826, "1,1":3.831706,
+                 "2,1":5.135622, "1,2":7.015587};
   const MODES = [
-    {file:"mode01", label:"(0,1)", text:"the whole head moves as one"},
-    {file:"mode11", label:"(1,1)", text:"one still line across the middle"},
-    {file:"mode21", label:"(2,1)", text:"two still lines, four moving quarters"},
-    {file:"mode12", label:"(1,2)", text:"a still line and a still ring"},
+    {m:0, n:1, label:"(0,1)", text:"the whole head moves as one"},
+    {m:1, n:1, label:"(1,1)", text:"one still line across the middle"},
+    {m:2, n:1, label:"(2,1)", text:"two still lines, four moving quarters"},
+    {m:1, n:2, label:"(1,2)", text:"a still line and a still ring"},
   ];
+
+  /* J_m by its power series. The argument never passes alpha_12 = 7.02, so it
+     converges long before the factorials could overflow. */
+  function besselJ(m, x){
+    let term = Math.pow(x / 2, m);
+    for (let k = 1; k <= m; k++) term /= k;
+    let sum = term;
+    for (let k = 1; k < 40; k++){
+      term *= -(x * x / 4) / (k * (k + m));
+      sum += term;
+      if (Math.abs(term) < 1e-14) break;
+    }
+    return sum;
+  }
+
+  const NR = 16, NTH = 40;             /* rings and spokes: 640 quads a frame */
+  /* Two canvases share one surface and one clock: the hero's small one and
+     the chapter's big one. Only the chapter's is draggable. */
+  const surf = {mode:0, grid:null, raf:0, t:0, yaw:-0.5, tilt:0.62,
+                drag:null, canvas:null, canvases:[], dpr:1};
+
+  /* The shape is fixed per mode, so it is built ONCE and a frame only scales
+     it by sin(wt). That is what keeps this cheap enough to leave running. */
+  function buildGrid(mi){
+    const {m, n} = MODES[mi], a = ALPHA[`${m},${n}`];
+    const pts = [];
+    let zmax = 1e-9;
+    for (let i = 0; i <= NR; i++){
+      const rr = i / NR;                                  /* r/a, 0 to 1 */
+      const row = [];
+      for (let j = 0; j <= NTH; j++){
+        const th = j / NTH * Math.PI * 2;
+        const z = besselJ(m, a * rr) * Math.cos(m * th);
+        zmax = Math.max(zmax, Math.abs(z));
+        row.push({x: rr * Math.cos(th), y: rr * Math.sin(th), z});
+      }
+      pts.push(row);
+    }
+    /* `c` is the colour, and it is the MODE SHAPE, fixed. Colouring by the
+       instantaneous height instead washes the whole surface out twice a cycle,
+       every time the membrane passes through flat, and the nodal lines vanish
+       with it. Fixed colour keeps the pattern readable at every phase while
+       the geometry still swings. */
+    for (const row of pts) for (const p of row) p.c = p.z / zmax;
+    surf.grid = pts;
+  }
+
+  function project(p, amp, w, h){
+    const cy = Math.cos(surf.yaw), sy = Math.sin(surf.yaw);
+    const ct = Math.cos(surf.tilt), st = Math.sin(surf.tilt);
+    const X = p.x * cy - p.y * sy;
+    const Y = p.x * sy + p.y * cy;
+    const Z = p.z * amp * 0.42;
+    const s = Math.min(w, h) * 0.44;
+    return {sx: w / 2 + X * s,
+            sy: h / 2 + (Y * ct - Z) * s * 0.92,
+            depth: Y * st + Z * 0.35};
+  }
+
+  /* Diverging, from the site's own two series hues through the panel colour at
+     zero. A membrane displacement has a sign, so a single hue ramp would throw
+     half of it away. */
+  function shade(v){
+    const up = [58, 135, 229], dn = [235, 104, 52];
+    const base = isDark() ? [88, 88, 84] : [250, 250, 246];
+    const t = Math.min(1, Math.abs(v) * 1.15);
+    const c = v >= 0 ? up : dn;
+    return `rgb(${Math.round(base[0] + (c[0]-base[0]) * t)},`+
+           `${Math.round(base[1] + (c[1]-base[1]) * t)},`+
+           `${Math.round(base[2] + (c[2]-base[2]) * t)})`;
+  }
+
+  function paint(){
+    for (const cv of surf.canvases) paintOne(cv);
+  }
+
+  function paintOne(cv){
+    if (!cv || !cv.offsetParent || !surf.grid) return;
+    const w = cv.width / surf.dpr, h = cv.height / surf.dpr;
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(surf.dpr, 0, 0, surf.dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const amp = Math.sin(surf.t);
+    const g = surf.grid, quads = [];
+    for (let i = 0; i < NR; i++){
+      for (let j = 0; j < NTH; j++){
+        const a = project(g[i][j], amp, w, h);
+        const b = project(g[i][j+1], amp, w, h);
+        const c = project(g[i+1][j+1], amp, w, h);
+        const d = project(g[i+1][j], amp, w, h);
+        const cc = (g[i][j].c + g[i][j+1].c + g[i+1][j+1].c + g[i+1][j].c) / 4;
+        quads.push({p:[a,b,c,d], v: cc,
+                    depth: (a.depth + b.depth + c.depth + d.depth) / 4});
+      }
+    }
+    /* painter's algorithm: far first, so near quads cover what is behind */
+    quads.sort((p, q) => p.depth - q.depth);
+    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = isDark() ? "rgba(0,0,0,.55)" : "rgba(0,0,0,.30)";
+    for (const q of quads){
+      ctx.beginPath();
+      ctx.moveTo(q.p[0].sx, q.p[0].sy);
+      for (let k = 1; k < 4; k++) ctx.lineTo(q.p[k].sx, q.p[k].sy);
+      ctx.closePath();
+      ctx.fillStyle = shade(q.v);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  const reduced = () => window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function tick(){
+    surf.t += 0.055;
+    paint();
+    surf.raf = requestAnimationFrame(tick);
+  }
+
+  function sizeCanvas(){
+    surf.dpr = Math.min(2, window.devicePixelRatio || 1);
+    for (const cv of surf.canvases){
+      const box = cv.parentElement.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      cv.width = Math.max(1, Math.round(box.width * surf.dpr));
+      cv.height = Math.max(1, Math.round(box.height * surf.dpr));
+      cv.style.width = box.width + "px";
+      cv.style.height = box.height + "px";
+    }
+    paint();
+  }
 
   function setMode(i){
     i = Math.max(0, Math.min(i, MODES.length - 1));
-    const img = $("modeGif"), cap = $("modeCaption");
-    if (img && !img.getAttribute("src").endsWith(MODES[i].file + ".gif"))
-      img.setAttribute("src", `assets/modes/${MODES[i].file}.gif`);
+    if (i !== surf.mode || !surf.grid){
+      surf.mode = i;
+      buildGrid(i);
+    }
+    const cap = $("modeCaption");
     if (cap) cap.innerHTML = `<b>${MODES[i].label}</b> &nbsp; ${MODES[i].text}`;
+    paint();
+  }
+
+  function initSurface(){
+    surf.canvas = $("modeCanvas");
+    surf.canvases = [$("heroCanvas"), surf.canvas].filter(Boolean);
+    if (!surf.canvases.length) return;
+    buildGrid(0);
+    sizeCanvas();
+    if (typeof ResizeObserver !== "undefined")
+      for (const cv of surf.canvases)
+        new ResizeObserver(sizeCanvas).observe(cv.parentElement);
+    if (!surf.canvas) return;
+
+    /* Drag to turn it. This is a web page, so the reader may as well look at
+       the nodal lines from wherever they want. */
+    const cv = surf.canvas;
+    const down = (e) => {
+      const p = e.touches ? e.touches[0] : e;
+      surf.drag = {x:p.clientX, y:p.clientY, yaw:surf.yaw, tilt:surf.tilt};
+    };
+    const move = (e) => {
+      if (!surf.drag) return;
+      const p = e.touches ? e.touches[0] : e;
+      surf.yaw = surf.drag.yaw + (p.clientX - surf.drag.x) * 0.01;
+      surf.tilt = Math.max(0.06, Math.min(1.45,
+        surf.drag.tilt + (p.clientY - surf.drag.y) * 0.006));
+      if (e.cancelable) e.preventDefault();
+      paint();
+    };
+    const up = () => { surf.drag = null; };
+    cv.addEventListener("mousedown", down);
+    cv.addEventListener("touchstart", down, {passive:true});
+    window.addEventListener("mousemove", move);
+    cv.addEventListener("touchmove", move, {passive:false});
+    window.addEventListener("mouseup", up);
+    cv.addEventListener("touchend", up);
+  }
+
+  function startSurface(){
+    if (surf.raf || reduced()) { paint(); return; }
+    surf.raf = requestAnimationFrame(tick);
   }
 
   /* ------------------------------------------------------------ the drift */
@@ -238,6 +418,7 @@ const Poster = (() => {
 
   function build(){
     fillStats();
+    initSurface();
     setMode(0);
 
     Scrolly.register("ch-modes", (i)=>setMode(Math.min(i, MODES.length-1)));
@@ -257,9 +438,11 @@ const Poster = (() => {
   }
 
   function enter(){
+    startSurface();
     Scrolly.reset();
   }
   function redraw(){
+    sizeCanvas();
     drawDrift(Scrolly.active("ch-drift"));
     drawStrike(Math.max(0, Scrolly.active("ch-strike")));
     drawMap(Math.max(0, Scrolly.active("ch-map")));

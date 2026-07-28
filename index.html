@@ -48,8 +48,8 @@
     <div class="affil">Department of Physics, Gordon College &middot;
       Wenham, MA</div>
     <div class="heroart">
-      <img class="modegif" src="assets/modes/mode01.gif" alt="the (0,1) mode of a circular membrane, animated"
-           style="width:150px;height:auto">
+      <div class="herobox"><canvas id="heroCanvas"
+           aria-label="the fundamental mode of a circular membrane"></canvas></div>
       <p style="max-width:44ch;color:var(--ink2)">A drumhead never rings at a
         single pitch. This is a map of every pitch one 50&nbsp;mm printed head
         rings at, measured with an infrared sensor that costs about a dollar.</p>
@@ -103,13 +103,14 @@
       <div class="sticky">
         <figure class="stage">
           <div class="modebox">
-            <img class="modegif" id="modeGif" src="assets/modes/mode01.gif"
-                 alt="an animated vibration mode of a circular membrane">
+            <canvas id="modeCanvas" aria-label="an animated vibration mode of
+                    an ideal circular membrane, drag to turn it"></canvas>
           </div>
           <figcaption id="modeCaption"></figcaption>
-          <figcaption class="credit">Animations by Oleg Alexandrov, released
-            into the public domain, via Wikimedia Commons
-            (<em>Drum vibration mode</em> series).</figcaption>
+          <figcaption class="credit">Drag it to turn it. The surface is
+            J<sub>m</sub>(&alpha;<sub>mn</sub>&#8239;r/a)&nbsp;cos(m&theta;)
+            for an ideal clamped membrane, drawn here from the Bessel zeros.
+            Theory, not a measurement of this head.</figcaption>
         </figure>
       </div>
     </div>

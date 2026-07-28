@@ -49,7 +49,7 @@ const StrikeView = (() => {
   const toMv = (a, mv) => Array.from(a, v => v * mv);
 
   /* ------------------------------------------------------------- waveform */
-  function drawWave(d, r){
+  function drawWave(d, into, bare){
     const t = tAxis(d), mv = d.mv_per_count;
     const raw = i16(d.w.raw), env = i16(d.w.env);
     const traces = [
@@ -97,15 +97,16 @@ const StrikeView = (() => {
            `peak and pp are LOWER bounds</b>`,
       font:{family:MONO, size:10.5, color:C.env}});
 
-    linePlot("svWave", traces, {
-      xtitle:"time (ms), t = 0 at the trigger",
-      ytitle:"signal (mV from baseline)",
-      xaxis:{range:[t[0], t[d.n-1]]}, shapes, annotations:ann,
-      hovermode:"x", toolbar:true});
+    linePlot(into || "svWave", traces, {
+      xtitle: bare ? "" : "time (ms), t = 0 at the trigger",
+      ytitle: bare ? "" : "signal (mV from baseline)",
+      xaxis:{range:[t[0], t[d.n-1]]}, shapes, annotations: bare ? [] : ann,
+      legend: !bare, hovermode:"x", toolbar: !bare,
+      margin: bare ? {l:38, r:8, t:10, b:30} : undefined});
   }
 
   /* ---------------------------------------------------------------- decay */
-  function drawDecay(d){
+  function drawDecay(d, into, bare){
     const env = i16(d.w.env), i0 = d.marks.decay;
     const traces = [], ann = [];
     let epk = 1e-9;
@@ -156,14 +157,16 @@ const StrikeView = (() => {
         text:"the ring-down outlives the window<br>(under 20 dB of decay to fit)",
         font:{family:MONO, size:11, color:cssv("--muted")}});
     }
-    linePlot("svDecay", traces, {
-      xtitle:"ms after the decay starts (post-clip peak)",
-      ytitle:"level (dB re peak)", yaxis:{range:[-65, 4]},
-      shapes:[], annotations:ann, hovermode:"x", toolbar:true});
+    linePlot(into || "svDecay", traces, {
+      xtitle: bare ? "" : "ms after the decay starts (post-clip peak)",
+      ytitle: bare ? "" : "level (dB re peak)", yaxis:{range:[-65, 4]},
+      shapes:[], annotations: bare ? [] : ann, legend: !bare,
+      hovermode:"x", toolbar: !bare,
+      margin: bare ? {l:38, r:8, t:10, b:30} : undefined});
   }
 
   /* ------------------------------------------------------------- spectrum */
-  function drawSpec(d){
+  function drawSpec(d, into, bare){
     const s = d.spec, traces = [], ann = [], shapes = [];
     if (s){
       const x = Array.from({length:s.n}, (_,k)=>s.f0 + k*s.df);
@@ -184,10 +187,13 @@ const StrikeView = (() => {
         text:` ${m.f_hz.toFixed(0)}`, showarrow:false, xanchor:"left",
         yshift:-8 - 13*j, font:{family:MONO, size:10.5, color:C.fit}});
     });
-    linePlot("svSpec", traces, {
-      xtitle:"frequency (Hz)", ytitle:"amplitude (a.u.)",
-      yaxis:{type:"log", dtick:1}, xaxis:{range:[0, 1000]},
-      shapes, annotations:ann, toolbar:true});
+    linePlot(into || "svSpec", traces, {
+      xtitle: bare ? "" : "frequency (Hz)",
+      ytitle: bare ? "" : "amplitude (a.u.)",
+      yaxis:{type:"log", dtick:1, showticklabels: !bare},
+      xaxis:{range:[0, 1000]}, legend: !bare,
+      shapes, annotations: bare ? [] : ann, toolbar: !bare,
+      margin: bare ? {l:34, r:8, t:10, b:30} : undefined});
   }
 
   /* ---------------------------------------------------------- spectrogram */
@@ -265,9 +271,9 @@ const StrikeView = (() => {
 
   /* --------------------------------------------------------------- driver */
   function render(d, r, i){
-    drawWave(d, r);
-    drawDecay(d);
-    drawSpec(d);
+    drawWave(d, "svWave", false);
+    drawDecay(d, "svDecay", false);
+    drawSpec(d, "svSpec", false);
     drawGram(d, "svGram", false);
     drawRadar(d);
     $("svNote").innerHTML =
@@ -325,10 +331,23 @@ const StrikeView = (() => {
         .then(d => { cache.set(i, d); return d; });
 
   let cellToken = 0;
+  let cellObs = null;
+
+  /* Each strike at the cell gets the SAME four panels the bench figure draws:
+     the vibration, the decay with its fit, the ring-down spectrum and the
+     spectrogram. Twelve strikes at the centre cell is 48 plots, so a row is
+     drawn only when it comes near the viewport and never again. */
+  const CELL_PANELS = [
+    ["wave",  "vibration",   (d, id) => drawWave(d, id, true)],
+    ["decay", "decay",       (d, id) => drawDecay(d, id, true)],
+    ["spec",  "spectrum",    (d, id) => drawSpec(d, id, true)],
+    ["gram",  "spectrogram", (d, id) => drawGram(d, id, true)],
+  ];
 
   function showCell(x, y, idxs){
     const token = ++cellToken;
     const card = $("cellCard"), host = $("cellGrid");
+    if (cellObs){ cellObs.disconnect(); cellObs = null; }
     card.classList.remove("hidden");
     $("cellTitle").textContent = `The cell at (${x}, ${y}) mm`;
     if (!idxs.length){
@@ -338,47 +357,66 @@ const StrikeView = (() => {
     }
     const r0 = DATA.strikes[idxs[0]];
     $("cellSub").innerHTML = `<b>${idxs.length}</b> strike`+
-      (idxs.length === 1 ? "" : "s") + ` at r/a ${r0.r_over_a}, one `+
-      `spectrogram each, in the order they were struck. Click one for its `+
-      `full measurement view.`;
+      (idxs.length === 1 ? "" : "s") + ` at r/a ${r0.r_over_a}, in the order `+
+      `they were struck. Every panel the bench figure draws, for each one. `+
+      `Click a row for its full measurement view with the axes labelled.`;
 
     host.innerHTML = idxs.map(i => {
       const r = DATA.strikes[i];
       const v = r.jam ? ["no","jam"] : (r.used ? ["ok","used"] : ["no","rejected"]);
-      return `<figure class="cellitem" data-i="${i}">
-        <div class="plot cellgram" id="cg_${i}"></div>
-        <figcaption>
+      return `<section class="cellrow" data-i="${i}">
+        <header>
           <b>${r.mount.replace("mount","M")} &middot; strike ${r.strike}</b>
           <span class="pill ${v[0]}"><span>${v[1]}</span></span>
           ${r.clipped ? '<span class="pill no"><span>clipped</span></span>' : ""}
-          <br>S${r.station} &middot; pp ${r.pp_mv} mV &middot; T60 ${r.T60_ms} ms
-          &middot; ${(r.modes_hz||[]).slice(0,2).map(f=>f.toFixed(0)+" Hz")
-                       .join(" / ") || "no mode picked"}
-        </figcaption>
-      </figure>`;
+          <span class="cellmeta">S${r.station} &middot; pp ${r.pp_mv} mV
+            &middot; T60 ${r.T60_ms} ms &middot; r&sup2; ${r.decay_r2}
+            &middot; ${(r.modes_hz||[]).slice(0,3).map(f=>f.toFixed(0)+" Hz")
+                         .join(" / ") || "no mode picked"}</span>
+        </header>
+        <div class="cellpanels">` +
+        CELL_PANELS.map(([k, title]) =>
+          `<figure><figcaption>${title}</figcaption>
+             <div class="plot cellplot" id="cp_${k}_${i}"></div></figure>`).join("") +
+        `</div>
+      </section>`;
     }).join("");
 
-    idxs.forEach(i => {
-      fetchStrike(i)
-        .then(d => { if (token === cellToken) drawGram(d, `cg_${i}`, true); })
-        .catch(() => {
-          if (token !== cellToken) return;
-          const el = $(`cg_${i}`);
-          if (el) el.innerHTML = `<p class="sub">could not load</p>`;
-        });
-    });
+    /* Draw a row when it is about to be seen, once. */
+    const draw = (el) => {
+      if (el.dataset.drawn) return;
+      el.dataset.drawn = "1";
+      const i = +el.dataset.i;
+      fetchStrike(i).then(d => {
+        if (token !== cellToken) return;
+        for (const [k, , fn] of CELL_PANELS) fn(d, `cp_${k}_${i}`);
+      }).catch(() => {
+        if (token !== cellToken) return;
+        el.querySelector(".cellpanels").innerHTML =
+          `<p class="sub">could not load this strike</p>`;
+      });
+    };
+    const rows = [...host.querySelectorAll(".cellrow")];
+    if (typeof IntersectionObserver === "undefined"){
+      rows.forEach(draw);
+    } else {
+      cellObs = new IntersectionObserver((entries) => {
+        for (const e of entries) if (e.isIntersecting) draw(e.target);
+      }, {rootMargin: "300px 0px"});
+      rows.forEach(el => cellObs.observe(el));
+    }
 
     host.onclick = (e) => {
-      const f = e.target.closest(".cellitem");
-      if (!f) return;
-      const i = +f.dataset.i;
-      Data.selectStrike(i);
+      const row = e.target.closest(".cellrow");
+      if (!row) return;
+      Data.selectStrike(+row.dataset.i);
     };
     card.scrollIntoView({behavior:"smooth", block:"start"});
   }
 
   function clearCell(){
     cellToken++;
+    if (cellObs){ cellObs.disconnect(); cellObs = null; }
     $("cellCard").classList.add("hidden");
     $("cellGrid").innerHTML = "";
   }
