@@ -51,16 +51,23 @@ const Poster = (() => {
   }
 
   const NR = 16, NTH = 40;             /* rings and spokes: 640 quads a frame */
-  const ZS = 0.40;                     /* height of the relief, in disc radii */
+  const ZS = 0.52;                     /* height of the relief, in disc radii */
   /* Two canvases share one surface and one clock: the hero's small one and
      the chapter's big one. Only the chapter's is draggable.
 
-     `elev` is the angle the camera sits ABOVE the plane of the rim. At 24 deg
-     the disc foreshortens to about 40% of its width, which is what tells the
-     eye it is looking at a surface from above rather than at a flat drawing.
-     The first version used a near face-on view with no foreshortening and no
-     lighting, and a dome and a bowl projected to the same picture. */
-  const surf = {mode:0, grid:null, raf:0, t:0, yaw:-0.5, elev:0.42,
+     `elev` is the angle the camera sits ABOVE the plane of the rim, and it is
+     the whole difference between a drawing that reads as a surface and one
+     that reads as a flat disc. At 18 deg the rim foreshortens to about 31% of
+     its width, so the relief owns most of the vertical extent of the picture.
+     Operator's own framing, picked by dragging the first version until it
+     looked right.
+
+     The drag is CLAMPED well short of overhead. Past about 40 deg the disc
+     opens back out toward a circle, the relief flattens against it, and the
+     surface stops reading as three dimensional, which is exactly the
+     complaint that produced this angle. */
+  const ELEV_MIN = 0.12, ELEV_MAX = 0.70;
+  const surf = {mode:0, grid:null, raf:0, t:0, yaw:-0.5, elev:0.31,
                 drag:null, canvas:null, canvases:[], dpr:1};
 
   /* The shape is fixed per mode, so it is built ONCE and a frame only scales
@@ -256,8 +263,8 @@ const Poster = (() => {
       if (!surf.drag) return;
       const p = e.touches ? e.touches[0] : e;
       surf.yaw = surf.drag.yaw + (p.clientX - surf.drag.x) * 0.01;
-      surf.elev = Math.max(0.10, Math.min(1.40,
-        surf.drag.elev + (p.clientY - surf.drag.y) * 0.006));
+      surf.elev = Math.max(ELEV_MIN, Math.min(ELEV_MAX,
+        surf.drag.elev + (p.clientY - surf.drag.y) * 0.005));
       if (e.cancelable) e.preventDefault();
       paint();
     };
