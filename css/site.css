@@ -231,7 +231,15 @@ img{max-width:100%}
 .foot{color:var(--muted);font-size:12px;margin-top:12px;max-width:80ch}
 .grid3{display:grid;gap:14px;margin-top:12px;
   grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
-.plot{width:100%;height:330px}
+/* min-width:0 is load bearing on EVERY plot. A grid item defaults to
+   min-width:auto, which for one of these is the width attribute Plotly wrote
+   on its svg last time it drew. Leave it at auto and shrinking the window
+   cannot shrink the column: the plot holds it open, the next redraw measures
+   the column it is holding open, and the page keeps the width it had on a
+   phone. Two columns of a stale desktop plot is where the sideways scrollbar
+   came from. */
+.plot{width:100%;height:330px;min-width:0}
+.grid3 > *,.cellpanels > *{min-width:0}
 .plot.tall{height:380px}
 .plot.wide{height:300px}
 .bandbox{max-width:430px;margin-top:12px}
@@ -258,11 +266,87 @@ img{max-width:100%}
   justify-content:center}
 .cta .btn{padding:9px 20px;font-size:13.5px}
 
+/* ================================================================= explore
+   The Data part's front door: the membrane on the left as the control, the
+   cell you picked on the right. The map is sticky at desk width, so clicking
+   your way around the head never scrolls the drum off the screen. */
+.explore{display:grid;gap:14px;margin-top:16px;align-items:start;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.04fr)}
+.explore .card{margin-top:0}
+/* min-width:0 on BOTH columns, and minmax(0,...) on both tracks. A grid item
+   defaults to min-width:auto, which is the min-content of a Plotly plot: the
+   width attribute on the svg it drew last time. Leave it at auto and the
+   column cannot shrink on a phone rotate, so the page scrolls sideways with
+   the card text cut off at the edge. */
+.exleft,.exright{min-width:0}
+.exleft{position:sticky;top:104px}
+.mapcard{outline-offset:3px}
+/* The drum is the control, so it gets the height. A heatmap with a locked
+   aspect ratio and a colour bar spends its width on both, and at 440 px the
+   membrane itself came out smaller than the play button next to it. */
+.exmap{height:min(58vh,510px)}
+.lg-sel i{width:11px;height:11px;border-radius:2px;border-color:var(--strike)}
+
+/* the player. One big target, because hearing a strike is the thing on this
+   page that nobody expects and everybody remembers. */
+.player{display:flex;align-items:center;gap:13px;margin-top:14px}
+.playbtn{width:58px;height:58px;flex:0 0 auto;border-radius:50%;cursor:pointer;
+  border:1px solid var(--ink);background:var(--ink);color:var(--panel);
+  display:grid;place-items:center;transition:transform .12s ease}
+.playbtn:hover:not([disabled]){transform:scale(1.06)}
+.playbtn[disabled]{opacity:.35;cursor:default}
+.playbtn .tri{width:0;height:0;margin-left:5px;
+  border-left:17px solid currentColor;border-top:11px solid transparent;
+  border-bottom:11px solid transparent}
+.playbtn.on .tri{width:15px;height:15px;margin:0;border:0;
+  background:currentColor;border-radius:2px}
+.scopewrap{position:relative;flex:1;min-width:0;height:92px;overflow:hidden;
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+#exScope{display:block;width:100%;height:100%}
+.scopetag{position:absolute;right:9px;top:6px;font-family:var(--mono);
+  font-size:10.5px;color:var(--muted);pointer-events:none}
+.playopts{margin-top:11px;gap:7px 12px}
+.playopts .btn[disabled]{opacity:.4;cursor:default}
+
+/* one row per hit at the cell: the list is the strike selector */
+.hits{display:flex;flex-direction:column;gap:6px;margin-top:12px;
+  max-height:330px;overflow-y:auto}
+.hit{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  font:inherit;font-family:var(--mono);font-size:12px;color:var(--ink2);
+  background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+  padding:7px 10px;cursor:pointer}
+.hit:hover{border-color:var(--ink2)}
+.hit[aria-pressed="true"]{border-color:var(--ink);
+  background:color-mix(in srgb,var(--series1) 13%,transparent)}
+.hit .hp{width:23px;height:23px;flex:0 0 auto;border-radius:50%;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  display:grid;place-items:center;font-size:9px;line-height:1}
+.hit.playing .hp{background:var(--strike);border-color:var(--strike);
+  color:#fff}
+.hit b{color:var(--ink);font-size:12.5px;white-space:nowrap}
+.hit .pill span{display:inline-block;padding:0 7px;border-radius:999px;
+  font-size:10px;font-weight:600}
+.hitmeta{color:var(--muted);margin-left:auto;text-align:right;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emptyhits{font-family:var(--mono);font-size:12px;color:var(--muted);
+  padding:10px 0}
+
+@media (max-width:900px){
+  .explore{grid-template-columns:minmax(0,1fr)}
+  .exleft{position:static}
+  .exmap{height:min(60vh,400px)}
+  .hits{max-height:none}
+  .player{gap:10px}
+  .playbtn{width:50px;height:50px}
+  .scopewrap{height:80px}
+}
+
 /* ====================================================== the strike panels
    The bench figure's layout: the waveform across the top, then decay against
    spectrum, then spectrogram against the drum. Same reading order, so someone
    who knows the printed figure recognises this one. */
-.svgrid{display:grid;gap:12px;margin-top:14px;grid-template-columns:1fr 1fr;
+.svgrid{display:grid;gap:12px;margin-top:14px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   grid-template-areas:"wave wave" "decay spec" "gram radar"}
 #svWave{grid-area:wave;height:320px}
 #svDecay{grid-area:decay;height:300px}
@@ -270,7 +354,7 @@ img{max-width:100%}
 #svGram{grid-area:gram;height:320px}
 #svRadar{grid-area:radar;height:320px}
 @media (max-width:820px){
-  .svgrid{grid-template-columns:1fr;
+  .svgrid{grid-template-columns:minmax(0,1fr);
     grid-template-areas:"wave" "decay" "spec" "gram" "radar"}
   #svWave,#svDecay,#svSpec,#svGram,#svRadar{height:280px}
 }
@@ -326,9 +410,19 @@ img{max-width:100%}
   color:var(--muted)}
 
 /* ================================================================== filters
-   Data part only. Sticks below the nav, never above it. */
+   Data part only. Sticks below the nav, never above it, and opens as ONE line
+   with the chips folded away behind the button. */
 .filters{position:sticky;top:53px;z-index:20;background:var(--bg);
-  border-bottom:1px solid var(--line);padding:10px 0 11px}
+  border-bottom:1px solid var(--line);padding:9px 0 10px}
+.fbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.fbar .caret{display:inline-block;transition:transform .15s ease;
+  font-size:10px;margin-right:2px}
+.fbar .btn[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.fsum{font-family:var(--mono);font-size:11.5px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52ch}
+.fspacer{flex:1}
+.fpanel{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+@media (max-width:620px){ .fsum{display:none} }
 .frow{display:flex;flex-wrap:wrap;gap:7px 16px;align-items:center}
 .fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .flabel{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;

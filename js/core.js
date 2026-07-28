@@ -127,6 +127,16 @@ function grid(){
   return DATA._grid;
 }
 
+/* The grid pitch, read from the campaign rather than assumed, so the square
+   the Explore view draws around the picked cell covers exactly one cell. */
+function cellSize(){
+  if (DATA._cs) return DATA._cs;
+  const g = grid(), d = [];
+  for (let i = 1; i < g.xs.length; i++) d.push(g.xs[i] - g.xs[i-1]);
+  DATA._cs = d.length ? median(d) : 4;
+  return DATA._cs;
+}
+
 function zMatrix(acc){
   const g = grid();
   const z = g.ys.map(()=>g.xs.map(()=>null));
@@ -234,6 +244,16 @@ function heatmap(divId, acc, opts){
       marker:{size:4, color:cssv("--ink2"), symbol:"circle"},
       hovertemplate:"clipped: amplitude is a lower bound<extra></extra>"});
   }
+  /* The Explore map draws the picked cell as an outlined square. A trace would
+     be hoverable and would steal the click that selects the cell under it, so
+     it is a shape. */
+  const shapes = drumShapes();
+  if (opts.mark){
+    const h = cellSize()/2;
+    shapes.push({type:"rect", x0:opts.mark.x-h, x1:opts.mark.x+h,
+      y0:opts.mark.y-h, y1:opts.mark.y+h, layer:"above",
+      fillcolor:"rgba(0,0,0,0)", line:{color:cssv("--strike"), width:2.4}});
+  }
   Plotly.react(divId, traces, baseLayout({
     title:{text:opts.title, font:{family:SANS, size:14, color:cssv("--ink")},
            x:0, xanchor:"left", y:0.97},
@@ -249,7 +269,7 @@ function heatmap(divId, acc, opts){
       tickfont:{size:10}, linecolor:cssv("--baseline"), ticks:"outside",
       ticklen:3, tickcolor:cssv("--baseline"), title:{text:"y (mm)", standoff:4,
       font:{size:10.5}}},
-    shapes:drumShapes(),
+    shapes,
     margin: opts.compact ? {l:38,r:6,t:30,b:40} : {l:46,r:8,t:38,b:46},
   }, boxOf(el)), CFG_BARE);
   settle(el);
@@ -445,7 +465,8 @@ function showPart(part, push){
     const q = new URLSearchParams(location.hash.slice(1));
     q.set("part", part);
     if (part !== "data"){
-      ["v","m","s","u","c","ra","k","p","bw","bc","x"].forEach(k=>q.delete(k));
+      ["v","m","s","u","c","ra","k","ek","p","bw","bc","q","x"]
+        .forEach(k=>q.delete(k));
     }
     history.replaceState(null, "", "#"+q.toString());
     window.scrollTo({top:0, behavior:"auto"});

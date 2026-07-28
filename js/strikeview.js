@@ -1,7 +1,11 @@
 "use strict";
 /* ===========================================================================
-   The per-strike measurement view: click a row in the Data part and get the
-   same five panels the bench figure draws.
+   One strike: the five panels the bench figure draws, and the sound it made.
+
+   The Data part picks the strike; this file owns everything that then happens
+   to it. The player (an AudioContext, the scope canvas and the playhead) lives
+   here because the buffer it plays is the same decoded record the vibration
+   panel plots, and decoding it twice would be silly.
 
    NOTHING here is computed. Every series was produced by drumlab itself at
    export time, by the same calls `views.plot_strike_master` draws from
@@ -273,17 +277,34 @@ const StrikeView = (() => {
      The pickup samples at 8 kHz and the membrane rings between 270 and 520 Hz,
      so the record already IS an audible waveform. The buffer here is the same
      raw counts the vibration panel draws, played at the rate they were taken.
-     Nothing is resampled, nothing is pitch shifted, nothing is filtered: the
-     reader hears the branch the metrics were never taken from, mains hum and
-     all, because that is what the sensor saw.
+     Nothing is resampled and nothing is filtered: the reader hears the branch
+     the metrics were never taken from, mains hum and all, because that is what
+     the sensor saw. Half speed is offered as an explicit choice and it drops
+     the pitch an octave, which the caption says.
 
      Each clip is normalised to its own peak, the same way `spectra.json` is,
      for the same reason: a soft strike would otherwise be inaudible next to a
      railed one. Loudness in the ear carries no information about how hard the
-     drum was struck, and the caption says so. */
-  let actx = null, playing = null;
+     drum was struck, and the caption says so.
 
-  function audioBuffer(d){
+     300 ms is a blip, so the reader gets three ways to hold on to it: the hit
+     list plays one strike per click, "hear every hit here" chains the lot, and
+     the scope under the button sweeps a playhead across the waveform while the
+     sound runs. Seeing the ring-down go quiet as it goes quiet is the point. */
+  let actx = null, node = null, rate = 1, chain = 0;
+  let playIdx = null, raf = 0, tStart = 0, tDur = 0;
+
+  function ctx(){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    /* Built on the click, never before it: browsers refuse an AudioContext
+       that no gesture asked for. */
+    if (!actx) actx = new AC();
+    if (actx.state === "suspended") actx.resume();
+    return actx;
+  }
+
+  function audioBuffer(d, ac){
     const raw = i16(d.w.raw), n = raw.length;
     let pk = 0;
     for (let k = 0; k < n; k++) pk = Math.max(pk, Math.abs(raw[k]));
@@ -292,7 +313,7 @@ const StrikeView = (() => {
        signal and the cut would click. It costs the first and last 24 samples,
        well outside the onset and the decay span the fit uses. */
     const ramp = Math.min(Math.round(0.003 * d.fs), n >> 1) || 1;
-    const buf = actx.createBuffer(1, n, d.fs);
+    const buf = ac.createBuffer(1, n, d.fs);
     const ch = buf.getChannelData(0);
     for (let k = 0; k < n; k++){
       let a = raw[k] * g;
@@ -303,50 +324,177 @@ const StrikeView = (() => {
     return buf;
   }
 
-  const label = (on) => {
-    const b = $("svPlay");
-    if (b) b.innerHTML = on ? "&#9632;&nbsp; stop" : "&#9654;&nbsp; hear this strike";
-  };
+  /* The one place that tells the page what the sound is doing. Data owns the
+     button and the hit rows, so it hands over a listener instead of this file
+     reaching across into markup it does not own. */
+  const fire = (i, on) => { if (api.onState) api.onState(i, on); };
 
-  function stopSound(){
-    if (!playing) return;
-    const src = playing;
-    playing = null;                       // before stop(), so onended is a no-op
-    try { src.stop(); } catch (e) {}
-    label(false);
+  /* Silence what is playing. `halt` leaves the queue alone, because starting
+     the next clip of a chain goes through here; `stop` is the reader saying
+     enough, and it drops the queue too. Keeping those apart is what stops
+     "hear every hit" from cancelling itself on its own second clip. */
+  function halt(){
+    if (raf){ cancelAnimationFrame(raf); raf = 0; }
+    const was = playIdx;
+    playIdx = null;
+    if (node){
+      const n = node;
+      node = null;                  // before stop(), so onended is a no-op
+      try { n.stop(); } catch (e) {}
+    }
+    scope.prog = 1;
+    drawScope();
+    if (was !== null) fire(was, false);
+  }
+  function stop(){ chain++; halt(); }
+
+  function sweep(){
+    if (playIdx === null || !actx){ raf = 0; return; }
+    const el = (actx.currentTime - tStart) / tDur;
+    scope.prog = Math.max(0, Math.min(1, el));
+    drawScope();
+    raf = scope.prog < 1 ? requestAnimationFrame(sweep) : 0;
   }
 
-  function playSound(d){
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return false;
-    /* Built on the click, never before it: browsers refuse an AudioContext
-       that no gesture asked for. */
-    if (!actx) actx = new AC();
-    if (actx.state === "suspended") actx.resume();
-    stopSound();
-    const src = actx.createBufferSource();
-    src.buffer = audioBuffer(d);
-    src.connect(actx.destination);
-    src.onended = () => { if (playing === src){ playing = null; label(false); } };
-    src.start();
-    playing = src;
-    label(true);
-    return true;
+  /* Resolves when the clip has finished, so playAll can chain on it. */
+  function start(i, d){
+    const ac = ctx();
+    if (!ac) return Promise.resolve(false);
+    halt();
+    const token = chain;
+    const src = ac.createBufferSource();
+    src.buffer = audioBuffer(d, ac);
+    src.playbackRate.value = rate;
+    src.connect(ac.destination);
+    scope.i = i; scope.d = d; scope.prog = 0;
+    node = src; playIdx = i;
+    tStart = ac.currentTime; tDur = (d.n / d.fs) / rate;
+    fire(i, true);
+    raf = requestAnimationFrame(sweep);
+    return new Promise(res => {
+      src.onended = () => {
+        if (node !== src) { res(false); return; }
+        node = null; playIdx = null;
+        if (raf){ cancelAnimationFrame(raf); raf = 0; }
+        scope.prog = 1;
+        drawScope();
+        fire(i, false);
+        res(token === chain);
+      };
+      src.start();
+    });
   }
 
-  /* Called from show(), never at load time: this file runs BEFORE core.js,
-     where `$` is defined, so anything touching the DOM up here would throw
-     and take the whole StrikeView module with it. */
-  function wireAudio(){
-    const b = $("svPlay");
-    if (!b) return;
-    b.onclick = () => {
-      if (playing){ stopSound(); return; }
-      const d = pending !== null ? cache.get(pending) : null;
-      if (!d) return;
-      if (!playSound(d))
-        $("svPlayNote").textContent = "This browser will not play audio.";
+  /* ctx() runs here, synchronously inside the click that asked for sound. Put
+     it after the fetch and Safari sees an AudioContext built by a promise
+     callback with no gesture behind it, and refuses to make a noise. */
+  function play(i){
+    if (playIdx === i){ stop(); return Promise.resolve(false); }
+    stop();
+    if (!ctx()) return Promise.resolve(false);
+    return fetchStrike(i).then(d => start(i, d)).catch(() => false);
+  }
+
+  /* Every hit at the cell, in order, with a gap between them. The gap is what
+     makes two hits comparable by ear: back to back they run together. */
+  function playAll(idxs){
+    stop();
+    if (!ctx()) return;
+    const token = chain;
+    const step = (k) => {
+      if (k >= idxs.length || token !== chain) return;
+      const i = idxs[k];
+      if (api.onAdvance) api.onAdvance(i);
+      fetchStrike(i)
+        .then(d => (token === chain ? start(i, d) : false))
+        .then(ok => { if (ok) setTimeout(() => step(k+1), 240); })
+        .catch(() => {});
     };
+    step(0);
+  }
+
+  function setRate(r){
+    const was = playIdx;
+    rate = r;
+    /* The caption carries the octave warning, so it has to be rewritten even
+       when the speed changes with nothing playing. */
+    if (pending !== null && cache.has(pending)) playNote(cache.get(pending));
+    if (was !== null){ stop(); play(was); }
+  }
+
+  /* ---------------------------------------------------------------- scope
+     The waveform under the play button, on a canvas rather than in Plotly:
+     it redraws on every animation frame while a clip runs, and a Plotly
+     relayout at 60 Hz is not free. Played samples are inked, the rest waits
+     in grey. */
+  const scope = {i:null, d:null, prog:1, obs:null};
+
+  function drawScope(){
+    const cv = $("exScope");
+    if (!cv || !cv.parentNode) return;
+    const W = cv.parentNode.clientWidth, H = cv.parentNode.clientHeight;
+    if (!W || !H) return;
+    const dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(W*dpr) || cv.height !== Math.round(H*dpr)){
+      cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+    }
+    const g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    const mid = Math.round(H/2) + 0.5;
+    g.strokeStyle = cssv("--baseline"); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+
+    const d = scope.d;
+    if (!d) return;
+    const raw = i16(d.w.raw), n = raw.length;
+    let pk = 1;
+    for (let k = 0; k < n; k++) pk = Math.max(pk, Math.abs(raw[k]));
+    const sy = (H/2 - 5) / pk;
+    const head = Math.round(W * scope.prog);
+    /* One column per pixel, drawn from the min and max of the samples that
+       land in it. Anything smoother would hide the clipped flat tops. */
+    const span = (x0, x1, col) => {
+      if (x1 <= x0) return;
+      g.fillStyle = col;
+      for (let x = x0; x < x1; x++){
+        const a = Math.floor(x*n/W), b = Math.max(a+1, Math.floor((x+1)*n/W));
+        let lo = Infinity, hi = -Infinity;
+        for (let k = a; k < b && k < n; k++){
+          if (raw[k] < lo) lo = raw[k];
+          if (raw[k] > hi) hi = raw[k];
+        }
+        if (lo === Infinity) continue;
+        const y = mid - hi*sy;
+        g.fillRect(x, y, 1, Math.max(1.2, (hi-lo)*sy));
+      }
+    };
+    span(0, head, cssv("--series1"));
+    span(head, W, cssv("--muted"));
+
+    if (d.clip.idx && d.clip.idx.length){
+      g.fillStyle = cssv("--amber");
+      const seen = new Set();
+      for (const k of d.clip.idx){
+        const x = Math.floor(k*W/n);
+        if (seen.has(x)) continue;
+        seen.add(x);
+        g.fillRect(x, 0, 1, 4);
+      }
+    }
+    if (scope.prog < 1){
+      g.strokeStyle = cssv("--strike"); g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(head+0.5, 2); g.lineTo(head+0.5, H-2); g.stroke();
+    }
+  }
+
+  /* The canvas has no intrinsic size, so it is redrawn from the box it sits
+     in whenever that box changes. Registered once, on the first draw. */
+  function watchScope(){
+    const cv = $("exScope");
+    if (!cv || scope.obs || typeof ResizeObserver === "undefined") return;
+    scope.obs = new ResizeObserver(() => drawScope());
+    scope.obs.observe(cv.parentNode);
   }
 
   /* --------------------------------------------------------------- driver */
@@ -356,28 +504,37 @@ const StrikeView = (() => {
     drawSpec(d, "svSpec", false);
     drawGram(d, "svGram", false);
     drawRadar(d);
-    $("svAudio").classList.remove("hidden");
-    $("svPlayNote").innerHTML =
-      `${(d.n / d.fs * 1000).toFixed(0)} ms of the raw pickup, played at the `+
-      `${(d.fs/1000).toFixed(0)}&nbsp;kHz it was sampled at. Nothing is pitch `+
-      `shifted and nothing is filtered, so the mains hum is in there too. Every `+
-      `clip is normalised to its own peak, which means how loud it sounds says `+
-      `nothing about how hard the drum was struck.` +
-      (d.clip.clipped ? ` <b>This one railed the amplifier, and the flattened `+
-        `top is audible as distortion.</b>` : ``);
+    $("svNote").innerHTML =
       `Display branch: <b>${(d.steps_d || []).join(" &rarr; ") || "raw"}</b>. `+
       `Every number comes from the despike and high pass branch only, never `+
       `from the gated one. These panels are drawn from series drumlab computed, `+
       `not recomputed here.`;
+    $("svNote").classList.remove("hidden");
+  }
+
+  /* The caption under the player. It is written from the strike in hand, so a
+     clipped record says out loud that the distortion in your ear is the
+     amplifier and not the drum. */
+  function playNote(d){
+    const el = $("exPlayNote");
+    if (!el) return;
+    el.innerHTML =
+      `${(d.n / d.fs * 1000).toFixed(0)} ms of the raw pickup, played at the `+
+      `${(d.fs/1000).toFixed(0)}&nbsp;kHz it was sampled at. Nothing is `+
+      `filtered, so the mains hum is in there too. Every clip is normalised to `+
+      `its own peak, which means how loud it sounds says nothing about how hard `+
+      `the head was struck.` +
+      (rate !== 1 ? ` Half speed puts the pitch an octave down.` : ``) +
+      (d.clip.clipped ? ` <b>This one railed the amplifier, and the flattened `+
+        `top is audible as distortion.</b>` : ``);
   }
 
   function show(i){
     const r = DATA.strikes[i];
     if (!r) return;
-    wireAudio();
-    stopSound();
-    $("svAudio").classList.add("hidden");
+    watchScope();
     $("svPanels").classList.add("hidden");
+    $("svNote").classList.add("hidden");
     $("svBoot").classList.remove("hidden");
     $("svBoot").textContent = "loading this strike…";
     const done = (d) => {
@@ -385,13 +542,21 @@ const StrikeView = (() => {
       cache.set(i, d);
       $("svBoot").classList.add("hidden");
       $("svPanels").classList.remove("hidden");
+      /* Only the scope of a strike nobody is listening to gets replaced: the
+         waveform under the playhead has to stay the one making the noise. */
+      if (playIdx === null){
+        scope.i = i; scope.d = d; scope.prog = 1;
+        drawScope();
+      }
+      playNote(d);
+      const tag = $("exScopeTag");
+      if (tag) tag.textContent =
+        `${(d.n/d.fs*1000).toFixed(0)} ms  ${(d.fs/1000).toFixed(0)} kHz`;
       render(d, r, i);
     };
     pending = i;
     if (cache.has(i)){ done(cache.get(i)); return; }
-    fetch(`data/strikes/${i}.json`)
-      .then(res => { if (!res.ok) throw new Error(String(res.status));
-                     return res.json(); })
+    fetchStrike(i)
       .then(done)
       .catch(err => {
         if (pending !== i) return;
@@ -402,26 +567,41 @@ const StrikeView = (() => {
 
   function clear(){
     pending = null;
-    stopSound();
-    $("svAudio").classList.add("hidden");
+    stop();
+    scope.i = null; scope.d = null; scope.prog = 1;
+    drawScope();
+    const tag = $("exScopeTag");
+    if (tag) tag.textContent = "";
+    $("exPlayNote").innerHTML = "";
     $("svPanels").classList.add("hidden");
+    $("svNote").classList.add("hidden");
     $("svBoot").classList.add("hidden");
   }
 
   /* ============================================================ one cell
-     Click a square on any map of the membrane and get every strike that
-     landed there, each as its own spectrogram. Three hits at one cell look
-     alike when they agree and obviously different when they do not, which is
-     the whole reason the campaign fires more than once per cell.
+     Opened by the compare button under a cell: every hit that landed there,
+     each with its own four panels. Three hits at one cell look alike when they
+     agree and obviously different when they do not, which is the whole reason
+     the campaign fires more than once per cell.
 
      One file per strike, so a cell with six hits costs six fetches. They run
-     together and the card fills in as they land. */
-  const fetchStrike = (i) => cache.has(i)
-    ? Promise.resolve(cache.get(i))
-    : fetch(`data/strikes/${i}.json`)
-        .then(r => { if (!r.ok) throw new Error(String(r.status));
-                     return r.json(); })
-        .then(d => { cache.set(i, d); return d; });
+     together and the card fills in as they land. Off by default, because the
+     shared strips carry 19 hits and that is 76 plots nobody asked for. */
+  /* Clicking a hit row selects it AND plays it, which asks for the same file
+     twice within a millisecond of itself. In-flight requests are shared, so
+     that is one fetch. */
+  const inflight = new Map();
+  const fetchStrike = (i) => {
+    if (cache.has(i)) return Promise.resolve(cache.get(i));
+    if (inflight.has(i)) return inflight.get(i);
+    const p = fetch(`data/strikes/${i}.json`)
+      .then(r => { if (!r.ok) throw new Error(String(r.status));
+                   return r.json(); })
+      .then(d => { cache.set(i, d); inflight.delete(i); return d; })
+      .catch(e => { inflight.delete(i); throw e; });
+    inflight.set(i, p);
+    return p;
+  };
 
   let cellToken = 0;
   let cellObs = null;
@@ -437,22 +617,23 @@ const StrikeView = (() => {
     ["gram",  "spectrogram", (d, id) => drawGram(d, id, true)],
   ];
 
-  function showCell(x, y, idxs){
+  function gallery(x, y, idxs){
     const token = ++cellToken;
     const card = $("cellCard"), host = $("cellGrid");
     if (cellObs){ cellObs.disconnect(); cellObs = null; }
     card.classList.remove("hidden");
-    $("cellTitle").textContent = `The cell at (${x}, ${y}) mm`;
+    $("cellTitle").textContent = `Every hit at (${x}, ${y}) mm, side by side`;
     if (!idxs.length){
-      $("cellSub").textContent = "No strike here passes the filters above.";
+      $("cellSub").textContent = "No hit here passes the filters.";
       host.innerHTML = "";
       return;
     }
     const r0 = DATA.strikes[idxs[0]];
-    $("cellSub").innerHTML = `<b>${idxs.length}</b> strike`+
-      (idxs.length === 1 ? "" : "s") + ` at r/a ${r0.r_over_a}, in the order `+
+    $("cellSub").innerHTML = `<b>${idxs.length}</b> hit`+
+      (idxs.length === 1 ? "" : "s") + ` at r/a ${r0.r_over_a.toFixed(2)}, in `+
+      `the order `+
       `they were struck. Every panel the bench figure draws, for each one. `+
-      `Click a row for its full measurement view with the axes labelled.`;
+      `Click a row to put that hit in the player above.`;
 
     host.innerHTML = idxs.map(i => {
       const r = DATA.strikes[i];
@@ -507,7 +688,7 @@ const StrikeView = (() => {
     card.scrollIntoView({behavior:"smooth", block:"start"});
   }
 
-  function clearCell(){
+  function clearGallery(){
     cellToken++;
     if (cellObs){ cellObs.disconnect(); cellObs = null; }
     $("cellCard").classList.add("hidden");
@@ -515,9 +696,17 @@ const StrikeView = (() => {
   }
 
   function redraw(){
+    drawScope();
     if (pending !== null && cache.has(pending))
       render(cache.get(pending), DATA.strikes[pending], pending);
   }
 
-  return {show, clear, redraw, showCell, clearCell};
+  const api = {show, clear, redraw, gallery, clearGallery,
+               play, playAll, stop, setRate,
+               playing: () => playIdx,
+               rate: () => rate,
+               /* Data sets these: onState paints the button and the row that
+                  is sounding, onAdvance follows a chain from hit to hit. */
+               onState: null, onAdvance: null};
+  return api;
 })();

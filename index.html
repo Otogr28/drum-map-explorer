@@ -12,7 +12,7 @@
      stylesheet and scripts from cache. That pair is worse than either half
      being old: the markup asks for behaviour the old script does not wire.
      Bump the token on any publish that changes css/ or js/. -->
-<link rel="stylesheet" href="css/site.css?v=20260728c">
+<link rel="stylesheet" href="css/site.css?v=20260728d">
 </head>
 <body>
 
@@ -798,34 +798,46 @@
 <!-- ==================================================================== -->
 <!-- =============================== DATA =============================== -->
 <!-- ==================================================================== -->
+<!-- The filter bar opens as one line. Six controls stacked above the drum
+     read as a cockpit, and a reader who just scanned a QR code has not been
+     told what any of them do. The line says what is currently selected; the
+     button opens the chips for whoever wants them. -->
 <div class="filters hidden" id="filters">
   <div class="wrap">
-    <div class="frow">
-      <div class="fgroup"><span class="flabel">mounting</span><span id="fMount"></span></div>
-      <div class="fgroup"><span class="flabel">sensor station</span><span id="fStation"></span></div>
-      <div class="fgroup"><span class="flabel">verdict</span><span id="fVerdict"></span></div>
-      <div class="fgroup"><span class="flabel">clipped</span><span id="fClip"></span></div>
+    <div class="fbar">
+      <button class="btn" id="fToggle" type="button" aria-expanded="false"
+              aria-controls="fPanel"><span class="caret" aria-hidden="true">&#9656;</span>
+        filters</button>
+      <span class="count" id="fCount"></span>
+      <span class="fsum" id="fSum"></span>
+      <span class="fspacer"></span>
+      <button class="btn" id="reset" type="button">reset</button>
+      <a class="btn primary" id="dl" href="data/points.csv"
+         download="drum_map_points.csv">CSV</a>
     </div>
-    <div class="frow" style="margin-top:7px">
-      <div class="fgroup"><span class="flabel">r/a</span>
-        <input type="range" id="raMin" min="0" max="1" step="0.02" value="0"
-               aria-label="minimum r/a">
-        <input type="range" id="raMax" min="0" max="1" step="0.02" value="1"
-               aria-label="maximum r/a">
-        <span class="count" id="raOut">0.00 &ndash; 1.00</span>
+    <div class="fpanel hidden" id="fPanel">
+      <div class="frow">
+        <div class="fgroup"><span class="flabel">mounting</span><span id="fMount"></span></div>
+        <div class="fgroup"><span class="flabel">sensor station</span><span id="fStation"></span></div>
+        <div class="fgroup"><span class="flabel">verdict</span><span id="fVerdict"></span></div>
+        <div class="fgroup"><span class="flabel">clipped</span><span id="fClip"></span></div>
       </div>
-      <div class="fgroup hidden" id="bandGroup">
-        <span class="flabel">mode&nbsp;map band</span>
-        <input class="num" id="bandC" type="number" step="1" aria-label="band centre Hz">
-        <span class="count">&plusmn;</span>
-        <input class="num" id="bandW" type="number" step="1" min="2" max="60"
-               value="12" aria-label="band half width Hz">
-        <span class="count">Hz</span>
-      </div>
-      <div class="fgroup" style="margin-left:auto">
-        <span class="count" id="fCount"></span>
-        <button class="btn" id="reset" type="button">reset</button>
-        <a class="btn primary" id="dl" href="data/points.csv" download="drum_map_points.csv">download CSV</a>
+      <div class="frow" style="margin-top:7px">
+        <div class="fgroup"><span class="flabel">r/a</span>
+          <input type="range" id="raMin" min="0" max="1" step="0.02" value="0"
+                 aria-label="minimum r/a">
+          <input type="range" id="raMax" min="0" max="1" step="0.02" value="1"
+                 aria-label="maximum r/a">
+          <span class="count" id="raOut">0.00 &ndash; 1.00</span>
+        </div>
+        <div class="fgroup hidden" id="bandGroup">
+          <span class="flabel">mode&nbsp;map band</span>
+          <input class="num" id="bandC" type="number" step="1" aria-label="band centre Hz">
+          <span class="count">&plusmn;</span>
+          <input class="num" id="bandW" type="number" step="1" min="2" max="60"
+                 value="12" aria-label="band half width Hz">
+          <span class="count">Hz</span>
+        </div>
       </div>
     </div>
   </div>
@@ -840,24 +852,126 @@
     <p class="sub" style="max-width:64ch;font-size:15px">A 50&nbsp;mm
       3D-printed TPU head, struck from below by a solenoid on a two-axis
       stage, watched by a reflective optical sensor that costs about a dollar.
-      Slice it however you like, and take the data with you. Any view you set
-      up is a link you can send.</p>
+      Click a spot on the head to hear what it did there. Any view you set up
+      is a link you can send.</p>
     <div class="stats" id="stats"></div>
   </header>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-map" data-view="map" aria-selected="true">Map</button>
-    <button class="tab" role="tab" id="tab-modes" data-view="modes" aria-selected="false">Modes</button>
-    <button class="tab" role="tab" id="tab-strikes" data-view="strikes" aria-selected="false">Strikes</button>
+    <button class="tab" role="tab" id="tab-explore" data-view="explore"
+            aria-selected="true">Explore</button>
+    <button class="tab" role="tab" id="tab-maps" data-view="maps"
+            aria-selected="false">Maps</button>
+    <button class="tab" role="tab" id="tab-modes" data-view="modes"
+            aria-selected="false">Peaks</button>
+    <button class="tab" role="tab" id="tab-strikes" data-view="strikes"
+            aria-selected="false">Table</button>
   </div>
 
   <main>
-  <section id="view-map" role="tabpanel" aria-labelledby="tab-map">
+  <!-- --------------------------------------------------------- explore ---
+       The front door. The membrane is the index of this dataset, so it is the
+       control: pick a place, get the hits that landed there, hear them. -->
+  <section id="view-explore" role="tabpanel" aria-labelledby="tab-explore">
+    <div class="explore">
+
+      <div class="exleft">
+        <div class="card mapcard" id="exMapCard" tabindex="0">
+          <h2>Pick a spot on the head</h2>
+          <p class="sub">Every square is one 4&nbsp;mm cell. Click it for the
+            hits that landed there. Once the drum has focus the arrow keys walk
+            the grid and the space bar plays.</p>
+          <div class="frow" style="margin-top:11px">
+            <span class="flabel">colour by</span><span id="exMetric"></span>
+          </div>
+          <div class="plot exmap" id="exMap"></div>
+          <div class="legend">
+            <span class="lg-sel"><i></i>the cell you picked</span>
+            <span class="lg-clip"><i></i>a hit here railed the amplifier</span>
+            <span>dashed ring: r/a = 0.48</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="exright">
+        <div class="card cellcard">
+          <h2 id="exTitle">Pick a cell</h2>
+          <p class="sub" id="exSub">Click a square on the head.</p>
+
+          <!-- The player. The pickup samples at 8 kHz and the head rings
+               between 270 and 520 Hz, so the record already is an audible
+               waveform and this is the shortest path from the data to a
+               reader's ear. -->
+          <div class="player">
+            <button class="playbtn" id="exPlay" type="button" disabled
+                    aria-label="play this hit"><span class="tri"
+                    aria-hidden="true"></span></button>
+            <div class="scopewrap">
+              <canvas id="exScope"></canvas>
+              <span class="scopetag" id="exScopeTag"></span>
+            </div>
+          </div>
+
+          <div class="frow playopts">
+            <button class="btn" id="exAll" type="button" disabled>hear every
+              hit here</button>
+            <span class="flabel">speed</span><span id="exRate"></span>
+          </div>
+          <p class="sub" id="exPlayNote"></p>
+
+          <div class="hits" id="exHits"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The five measurement panels want the full width, so they sit under
+         the pair rather than in the right column. -->
+    <div class="card" id="exDetail">
+      <h2 id="strikeTitle">Pick a hit</h2>
+      <p class="sub" id="strikeSub">Every panel the bench figure draws, for
+        whichever hit is selected above.</p>
+      <div id="svBoot" class="loading hidden"></div>
+      <div id="svPanels" class="svgrid hidden">
+        <div class="plot" id="svWave"></div>
+        <div class="plot" id="svDecay"></div>
+        <div class="plot" id="svSpec"></div>
+        <div class="plot" id="svGram"></div>
+        <div class="plot" id="svRadar"></div>
+      </div>
+      <div class="note hidden" id="svNote"></div>
+      <div id="svSpecBlock" class="hidden">
+        <h3 style="margin-top:20px">This hit against the whole selection</h3>
+        <p class="sub">The exported tail spectrum, the one the mode maps
+          integrate, next to the median of every strike passing the
+          filters.</p>
+        <div class="plot wide" id="strikePlot"></div>
+      </div>
+      <div class="frow" style="margin-top:14px">
+        <button class="btn hidden" id="exCompare" type="button">compare every
+          hit at this cell</button>
+      </div>
+    </div>
+
+    <!-- Opened by the button above, never by default: a cell with 19 hits is
+         76 plots, and the question it answers (do the hits at one place agree)
+         is one a reader asks second. -->
+    <section id="cellCard" class="card hidden">
+      <h2 id="cellTitle"></h2>
+      <p class="sub" id="cellSub"></p>
+      <div class="cellgrid" id="cellGrid"></div>
+      <div class="note">Every hit at one place on the head. The campaign fires
+        more than once per cell on purpose: hits that agree look alike here,
+        and the ones that do not are why the verdicts exist.</div>
+    </section>
+  </section>
+
+  <!-- ------------------------------------------------------------ maps --- -->
+  <section id="view-maps" class="hidden" role="tabpanel" aria-labelledby="tab-maps">
     <div class="card">
       <h2>The membrane, cell by cell</h2>
       <p class="sub">Each square is one 4&nbsp;mm cell of the head, averaged
-        over every strike that survives the filters above. This is the poster's
-        figure, live.</p>
+        over every strike that survives the filters. This is the poster's
+        figure, live. Click a cell to open it in Explore.</p>
       <div class="frow" style="margin-top:11px">
         <span class="flabel">metric</span><span id="fMetric"></span>
         <button class="btn" id="mapTableBtn" type="button"
@@ -873,6 +987,7 @@
     </div>
   </section>
 
+  <!-- ----------------------------------------------------------- peaks --- -->
   <section id="view-modes" class="hidden" role="tabpanel" aria-labelledby="tab-modes">
     <div class="card">
       <h2>Ring-down spectrum</h2>
@@ -893,49 +1008,15 @@
     </div>
   </section>
 
+  <!-- ----------------------------------------------------------- table --- -->
   <section id="view-strikes" class="hidden" role="tabpanel" aria-labelledby="tab-strikes">
     <div class="card">
       <h2>Every strike</h2>
-      <p class="sub">One row per hit, in the order it was struck. Click a row
-        to see that strike's own ring-down spectrum against the median. Sort by
-        any column.</p>
+      <p class="sub">One row per hit, in the order it was struck. Sort by any
+        column. Click a row to open that hit in Explore, panels and sound
+        included.</p>
       <div class="tablewrap" id="strikeTable"></div>
     </div>
-    <div class="card">
-      <h2 id="strikeTitle">Pick a strike</h2>
-      <p class="sub" id="strikeSub">Click any row above.</p>
-      <div id="svAudio" class="hidden">
-        <div class="frow">
-          <button class="btn" id="svPlay" type="button">&#9654;&nbsp; hear this strike</button>
-        </div>
-        <p class="sub" id="svPlayNote"></p>
-      </div>
-      <div id="svBoot" class="loading hidden"></div>
-      <div id="svPanels" class="svgrid hidden">
-        <div class="plot" id="svWave"></div>
-        <div class="plot" id="svDecay"></div>
-        <div class="plot" id="svSpec"></div>
-        <div class="plot" id="svGram"></div>
-        <div class="plot" id="svRadar"></div>
-      </div>
-      <div class="note hidden" id="svNote"></div>
-      <h3 style="margin-top:20px">This strike against the whole selection</h3>
-      <p class="sub">The exported tail spectrum, the one the mode maps
-        integrate, next to the median of every strike passing the filters.</p>
-      <div class="plot wide" id="strikePlot"></div>
-    </div>
-  </section>
-
-  <!-- Populated by clicking a square on ANY map of the membrane. It sits
-       outside the three view sections so a click in Map or in Modes both
-       land here. -->
-  <section id="cellCard" class="card hidden">
-    <h2 id="cellTitle"></h2>
-    <p class="sub" id="cellSub"></p>
-    <div class="cellgrid" id="cellGrid"></div>
-    <div class="note">Every strike at one place on the head. The campaign
-      fires more than once per cell on purpose: hits that agree look alike
-      here, and the ones that do not are why the verdicts exist.</div>
   </section>
   </main>
 
@@ -1034,13 +1115,13 @@
    document.write is deliberate: it keeps the load synchronous, so the app
    scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
-  '<script src="vendor/plotly-cartesian.min.js?v=20260728c"><\/script>');
+  '<script src="vendor/plotly-cartesian.min.js?v=20260728d"><\/script>');
 </script>
-<script src="js/scrolly.js?v=20260728c"></script>
-<script src="js/strikeview.js?v=20260728c"></script>
-<script src="js/data.js?v=20260728c"></script>
-<script src="js/poster.js?v=20260728c"></script>
-<script src="js/method.js?v=20260728c"></script>
-<script src="js/core.js?v=20260728c"></script>
+<script src="js/scrolly.js?v=20260728d"></script>
+<script src="js/strikeview.js?v=20260728d"></script>
+<script src="js/data.js?v=20260728d"></script>
+<script src="js/poster.js?v=20260728d"></script>
+<script src="js/method.js?v=20260728d"></script>
+<script src="js/core.js?v=20260728d"></script>
 </body>
 </html>

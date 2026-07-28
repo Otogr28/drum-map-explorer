@@ -51,26 +51,50 @@ describe rules the measurement was not using.
 
 ### Data
 
-The original explorer. Filters (mounting, sensor station, operator verdict,
-clipping, r/a range) apply to all three views at once, and the filter state
-lives in the URL, so any slice of this dataset is a link you can send.
+The membrane is the control. Click a place on the head, get the hits that
+landed there, and hear them.
 
-- **Map**: the poster's three per-cell heatmaps (amplitude, decay T60,
-  dominant mode), plus SNR and decay fit quality.
-- **Modes**: the median ring-down spectrum with the peaks the campaign's own
+- **Explore**: the drum on the left, the cell you picked on the right. Colour
+  the head by hits per cell, amplitude, T60 or dominant peak; click a square,
+  or give the drum focus and walk the grid with the arrow keys. The right
+  column lists every hit at that cell with its verdict, and each one plays.
+  Under the pair sit the five measurement panels for whichever hit is
+  selected, and a button that puts every hit at the cell side by side.
+- **Maps**: the poster's three per-cell heatmaps (amplitude, decay T60,
+  dominant mode), plus SNR and decay fit quality. Clicking a cell here opens
+  it in Explore.
+- **Peaks**: the median ring-down spectrum with the peaks the campaign's own
   picker keeps, and a per-cell map of where any frequency band lives.
-- **Strikes**: every hit as a sortable row. Click one and you get that
-  strike's full measurement view: the waveform with the raw trace, the mains
-  trend, the cleaned display branch, the envelope and the onset, settled and
-  clipping markers; the Schroeder decay with its fit and the log envelope
-  cross-check; the Welch ring-down spectrum with the picked modes; the
-  spectrogram; and where on the head it was struck, with the sensor.
+- **Table**: every hit as a sortable row. Click one to open it in Explore.
 
-  Those panels are **not redrawn from scratch in the browser**. Every series in
-  them was computed by drumlab at export time, by the same calls the bench
-  figure draws from, and shipped as one small file per strike. The page decodes
-  and plots. A second implementation would drift from the bench figure and
-  nobody would notice which one was wrong.
+Filters (mounting, sensor station, operator verdict, clipping, r/a range)
+apply to all four views at once and fold into a single line at the top, which
+says in words what is currently selected. The filter state, the picked cell
+and the selected hit all live in the URL, so any slice of this dataset is a
+link you can send.
+
+**Hearing a strike.** The pickup samples at 8 kHz and the head rings between
+270 and 520 Hz, so a record already is an audible waveform. The player sends
+the raw counts to the speakers at the rate they were taken and sweeps a
+playhead across the waveform while they go, so the ring-down is visible and
+audible at once. Nothing is filtered, which means the mains hum is in there
+too, and every clip is normalised to its own peak, which means loudness in
+your ear says nothing about how hard the head was struck. Half speed is
+offered as an explicit choice and it drops the pitch an octave. A clipped
+record is announced as clipped, because the distortion you hear is the
+amplifier and not the drum.
+
+The five panels behind a hit are the waveform with the raw trace, the mains
+trend, the cleaned display branch, the envelope and the onset, settled and
+clipping markers; the Schroeder decay with its fit and the log envelope
+cross-check; the Welch ring-down spectrum with the picked modes; the
+spectrogram; and where on the head it was struck, with the sensor.
+
+Those panels are **not redrawn from scratch in the browser**. Every series in
+them was computed by drumlab at export time, by the same calls the bench figure
+draws from, and shipped as one small file per strike. The page decodes and
+plots. A second implementation would drift from the bench figure and nobody
+would notice which one was wrong.
 
 `points.csv` is a verbatim copy of the campaign's own aggregate file, and the
 download button hands it to you unchanged.
@@ -124,7 +148,7 @@ js/scrolly.js                  which step is current, and telling the figure
 js/poster.js                   the Poster part
 js/method.js                   the Method part
 js/data.js                     the Data part
-js/strikeview.js               the five panels behind a strike
+js/strikeview.js               one strike: the five panels and the player
 assets/                        four images JavaScript cannot draw
 data/campaign.json             anchor, axis, stations, mountings, mode list
 data/strikes.json              one record per strike
@@ -153,8 +177,10 @@ lives here.
 
 ## Accessibility and motion
 
-The scroll is never captured: swiping keeps moving the page. Under
-`prefers-reduced-motion` the step cards stop fading and lifting and every one
+The scroll is never captured: swiping keeps moving the page. In the Data part
+the drum takes keyboard focus, and only then do the arrow keys walk the grid
+and the space bar play, so the page never swallows a key it was not given.
+Under `prefers-reduced-motion` the step cards stop fading and lifting and every one
 is legible at once, while the pinned figure still follows the reader, because
 that is information rather than decoration. Light and dark are both hand
 tuned, and the theme button overrides the system setting.

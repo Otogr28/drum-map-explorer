@@ -1,12 +1,23 @@
 "use strict";
 /* ===========================================================================
-   The Data part: the original explorer. Filters across the top, three views,
-   every slice a link.
+   The Data part.
 
-   Behaviour is unchanged from the first build of this site. What moved out is
-   the machinery the other two parts also need (aggregation, spectra, the
-   heatmap), which now lives in core.js so the Poster maps and these maps
-   average identically.
+   Rebuilt 2026-07-28. The first version opened on six rows of filter chips
+   above three tabs of plots, and every reader had to work out what a mounting
+   and a sensor station were before the page would tell them anything. This one
+   opens on the drum: the membrane IS the control. Click a place on the head,
+   get the hits that landed there, hear them, then read the panels.
+
+   Four views, each with one job:
+
+     Explore   the head, the hits at the cell you picked, and the player
+     Maps      the poster's three per-cell heatmaps, live
+     Peaks     the median ring-down spectrum and a band map
+     Table     every strike as a sortable row
+
+   The filters did not go away, they folded into one line. Aggregation still
+   runs through core.js (`cellsOf`, `bandCells`), so these maps and the Poster
+   part's maps cannot drift apart.
    =========================================================================== */
 
 const Data = (() => {
@@ -15,18 +26,21 @@ const Data = (() => {
    Everything a reader can change lives here and round-trips through the URL
    hash, so any view of this dataset is a link somebody can send. */
 const S = {
-  view:"map",
+  view:"explore",
   mounts:new Set(), stations:new Set(),
   verdict:new Set(["used"]),       // poster default: the good strikes only
   clip:"all",
   raMin:0, raMax:1,
-  metric:"poster",
+  metric:"poster",                 // Maps view
+  emetric:"pp",                    // Explore view: the poster's own map first
   mode:1,                          // index into campaign.modes
   bandC:null, bandW:12,
+  cell:null,                       // {x, y} in mm, the picked cell
   strike:null,
   sort:{key:"i", dir:1},
   mapTable:false,
 };
+const VIEWS = ["explore","maps","modes","strikes"];
 
 function writeHash(){
   const c = DATA.campaign;
@@ -39,9 +53,11 @@ function writeHash(){
   if (S.clip !== "all") p.set("c", S.clip);
   if (S.raMin > 0 || S.raMax < 1) p.set("ra", `${S.raMin},${S.raMax}`);
   if (S.metric !== "poster") p.set("k", S.metric);
+  if (S.emetric !== "pp") p.set("ek", S.emetric);
   if (S.mode !== 1) p.set("p", String(S.mode));
   if (S.bandW !== 12) p.set("bw", String(S.bandW));
   if (S.bandC !== null) p.set("bc", String(S.bandC));
+  if (S.cell) p.set("q", `${S.cell.x},${S.cell.y}`);
   if (S.strike !== null) p.set("x", String(S.strike));
   history.replaceState(null,"", "#"+p.toString());
 }
@@ -51,7 +67,10 @@ function readHash(){
   const list = (k, fb, cast) => p.has(k)
     ? new Set(p.get(k).split(",").filter(Boolean).map(cast))
     : new Set(fb);
-  S.view     = ["map","modes","strikes"].includes(p.get("v")) ? p.get("v") : "map";
+  /* `map` was the old name of the Maps view. Links printed or sent before the
+     rebuild still have to land somewhere sensible. */
+  const v = p.get("v") === "map" ? "maps" : p.get("v");
+  S.view     = VIEWS.includes(v) ? v : "explore";
   S.mounts   = list("m", c.mounts.map(m=>"mount"+m.mount), String);
   S.stations = list("s", c.stations_used, Number);
   S.verdict  = list("u", ["used"], String);
@@ -62,10 +81,22 @@ function readHash(){
     if (isFinite(b)) S.raMax = b;
   }
   if (p.has("k")) S.metric = p.get("k");
+  if (p.has("ek") && METRICS[p.get("ek")]) S.emetric = p.get("ek");
   if (p.has("p")) S.mode = Math.max(0, Math.min(c.modes.length-1, +p.get("p")||0));
   if (p.has("bw")) S.bandW = Math.max(2, Math.min(60, +p.get("bw")||12));
   S.bandC = p.has("bc") ? +p.get("bc") : null;
   S.strike = p.has("x") ? +p.get("x") : null;
+  S.cell = null;
+  if (p.has("q")){
+    const [x,y] = p.get("q").split(",").map(Number);
+    if (isFinite(x) && isFinite(y)) S.cell = {x, y};
+  }
+  /* A link to one strike carries the cell it landed on, so the drum opens
+     already pointing at it. */
+  if (!S.cell && S.strike !== null && DATA.strikes[S.strike]){
+    const r = DATA.strikes[S.strike];
+    S.cell = {x:r.x, y:r.y};
+  }
 }
 
 /* ================================================================= filtering
@@ -90,6 +121,8 @@ function selection(){
 }
 
 const METRICS = {
+  hits: {title:"Hits per cell", unit:"hits", hue:"aqua", get:()=>1,
+         count:true, clipped:true},
   pp:   {title:"Amplitude", unit:"mV",  hue:"blue",   get:r=>r.pp_mv, clipped:true},
   t60:  {title:"Decay T60", unit:"ms",  hue:"orange", get:r=>r.T60_ms},
   mode1:{title:"Dominant mode", unit:"Hz", hue:"aqua",
@@ -97,7 +130,201 @@ const METRICS = {
   snr:  {title:"Signal to noise", unit:"dB", hue:"blue", get:r=>r.snr_db},
   r2:   {title:"Decay fit quality", unit:"r²", hue:"orange", get:r=>r.decay_r2},
 };
+/* "hits" is a count, not an average, so it takes the tally cellsOf already
+   keeps rather than the mean of a value. */
+function accOf(k, idxs){
+  const M = METRICS[k], acc = cellsOf(idxs, M.get);
+  if (M.count) for (const e of acc.values()) e.mean = e.n;
+  return acc;
+}
 
+/* ==================================================================== explore
+   The membrane as an index: one entry per cell that has a hit in the current
+   selection, holding the hits in the order they were struck. */
+let _cells = new Map();
+const ckey = (x,y) => `${x}|${y}`;
+
+function cellIndex(idxs){
+  const m = new Map();
+  for (const i of idxs){
+    const r = DATA.strikes[i], k = ckey(r.x, r.y);
+    let e = m.get(k);
+    if (!e){ e = {x:r.x, y:r.y, list:[]}; m.set(k, e); }
+    e.list.push(i);
+  }
+  return m;
+}
+
+/* Never open on an empty right hand column. The centre of the head is where a
+   reader looks first and it is one of the cross-mounting anchors, so it is
+   also where the campaign hit hardest. */
+function defaultCell(){
+  if (_cells.has(ckey(0,0))) return {x:0, y:0};
+  let best = null, bd = Infinity;
+  for (const e of _cells.values()){
+    const d = e.x*e.x + e.y*e.y;
+    if (d < bd){ bd = d; best = e; }
+  }
+  return best ? {x:best.x, y:best.y} : null;
+}
+
+function drawExplore(idxs){
+  _cells = cellIndex(idxs);
+  if (!S.cell || !_cells.has(ckey(S.cell.x, S.cell.y))) S.cell = defaultCell();
+  const e = S.cell ? _cells.get(ckey(S.cell.x, S.cell.y)) : null;
+  const list = e ? e.list : [];
+  if (S.strike === null || list.indexOf(S.strike) < 0)
+    S.strike = list.length ? list[0] : null;
+
+  const M = METRICS[S.emetric];
+  heatmap("exMap", accOf(S.emetric, idxs), {
+    title:M.title, unit:M.unit, hue:M.hue, clipped:M.clipped,
+    mark:S.cell});
+  wireCellClick("exMap", false);
+
+  if (!e){
+    $("exTitle").textContent = "Pick a cell";
+    $("exSub").textContent = "Click a square on the head.";
+    $("exHits").innerHTML = "";
+    $("exPlay").disabled = true;
+    $("exAll").disabled = true;
+    $("exCompare").classList.add("hidden");
+    clearDetail();
+    return;
+  }
+
+  const r0 = DATA.strikes[list[0]];
+  const nclip = list.filter(i=>DATA.strikes[i].clipped).length;
+  const mounts = [...new Set(list.map(i=>DATA.strikes[i].mount))].length;
+  $("exTitle").textContent = `The cell at (${e.x}, ${e.y}) mm`;
+  $("exSub").innerHTML = `<b>${list.length}</b> hit`+
+    (list.length === 1 ? "" : "s") + ` here, at r/a ${r0.r_over_a.toFixed(2)}`+
+    (mounts > 1 ? `, from ${mounts} mountings` : ``) + `. `+
+    (nclip ? `<b>${nclip}</b> of them railed the amplifier. ` : ``) +
+    `Press play to hear one.`;
+  renderHits(list);
+  $("exPlay").disabled = S.strike === null;
+  $("exAll").disabled = list.length < 2;
+  $("exCompare").classList.toggle("hidden", list.length < 2);
+  $("exCompare").textContent = `compare all ${list.length} hits at this cell`;
+  if (S.strike !== null) showStrike(S.strike, idxs); else clearDetail();
+}
+
+function renderHits(list){
+  $("exHits").innerHTML = list.length ? list.map(i=>{
+    const r = DATA.strikes[i];
+    const v = r.jam ? ["no","jam"] : (r.used ? ["ok","used"] : ["no","rejected"]);
+    return `<button type="button" class="hit" data-i="${i}" `+
+      `aria-pressed="${S.strike === i}">`+
+      `<span class="hp" aria-hidden="true">&#9654;</span>`+
+      `<b>${r.mount.replace("mount","M")} &middot; #${r.strike}</b>`+
+      `<span class="pill ${v[0]}"><span>${v[1]}</span></span>`+
+      (r.clipped ? `<span class="pill no"><span>clipped</span></span>` : ``)+
+      `<span class="hitmeta">S${r.station} &middot; ${r.pp_mv} mV `+
+      `&middot; T60 ${r.T60_ms} ms</span></button>`;
+  }).join("") : `<p class="emptyhits">No hit at this cell passes the `+
+    `filters.</p>`;
+}
+
+/* The panels are 31 kB a strike and a redraw of five plots, so they are only
+   asked for when the selected strike actually changed. A filter tweak or a
+   theme flip must not refetch. */
+let _shown = null;
+function showStrike(i, idxs){
+  const r = DATA.strikes[i];
+  const v = r.jam ? "a jam" : (r.used ? "kept by the operator"
+                                      : "REJECTED by the operator");
+  $("strikeTitle").textContent =
+    `${r.mount.replace("mount","Mounting ")} · strike ${r.strike} at `+
+    `(${r.x}, ${r.y}) mm`;
+  $("strikeSub").innerHTML = `r/a ${r.r_over_a} · sensor station `+
+    `${r.station} at (${r.sensor_x}, ${r.sensor_y}) mm · pp ${r.pp_mv} mV`+
+    (r.clipped ? ` <b>(clipped: lower bound)</b>` : ``) +
+    ` · T60 ${r.T60_ms} ms (r² ${r.decay_r2}) · ${v}.`;
+  if (_shown !== i){ StrikeView.show(i); _shown = i; }
+  drawStrikeSpec(i, idxs);
+  $("svSpecBlock").classList.remove("hidden");
+}
+
+function clearDetail(){
+  _shown = null;
+  StrikeView.clear();
+  StrikeView.clearGallery();
+  $("strikeTitle").textContent = "Pick a hit";
+  $("strikeSub").textContent = "Click a square on the head.";
+  $("svSpecBlock").classList.add("hidden");
+  Plotly.purge("strikePlot");
+}
+
+/* This hit's exported tail spectrum against the median of everything the
+   filters keep. The mode maps integrate exactly this curve. */
+function drawStrikeSpec(i, idxs){
+  const f = freqAxis(), sc = DATA.spectra.amp_scale;
+  const med = medianSpectrum(idxs);
+  const traces = [];
+  if (med) traces.push({type:"scatter", x:f, y:med, mode:"lines",
+    name:"median of the selection", line:{color:cssv("--series1"), width:2},
+    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
+  if (specOf(i)) traces.push({type:"scatter", x:f,
+    y:Array.from(specOf(i), v=>v/sc), mode:"lines",
+    name:"this hit", line:{color:cssv("--series2"), width:1.8},
+    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
+  linePlot("strikePlot", traces, {xtitle:"frequency (Hz)",
+    ytitle:"ring-down amplitude (rel.)", toolbar:true,
+    yaxis:{type:"log", showticklabels:false}});
+}
+
+/* ------------------------------------------------------------- selection */
+function selectCell(x, y, jump){
+  S.cell = {x, y};
+  S.strike = null;                 // the first hit at the new cell takes over
+  StrikeView.stop();
+  StrikeView.clearGallery();
+  if (jump) S.view = "explore";
+  render();
+  const card = $("exMapCard");
+  if (card) card.focus({preventScroll:true});
+  if (jump) $("view-explore").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+/* The gallery and the table hand a strike back here, so the whole part agrees
+   on which one is selected: the drum points at its cell, the hit row lights
+   up, the hash carries it and the panels draw. */
+function selectStrike(i){
+  const r = DATA.strikes[i];
+  if (!r) return;
+  S.cell = {x:r.x, y:r.y};
+  S.strike = i;
+  S.view = "explore";
+  StrikeView.stop();
+  render();
+  const el = $("exTitle");
+  if (el) el.scrollIntoView({behavior:"smooth", block:"center"});
+}
+
+function selectHit(i, play){
+  S.strike = i;
+  render();
+  if (play) StrikeView.play(i);
+}
+
+/* Arrow keys walk the grid, and they skip cells with nothing in them, so the
+   reader crosses the head rather than falling into a gap the filters made. */
+function moveCell(dx, dy){
+  if (!S.cell) return;
+  const g = grid();
+  const ix = g.ix.get(S.cell.x), iy = g.iy.get(S.cell.y);
+  if (ix === undefined || iy === undefined) return;
+  const n = Math.max(g.xs.length, g.ys.length);
+  for (let s = 1; s <= n; s++){
+    const nx = ix + dx*s, ny = iy + dy*s;
+    if (nx < 0 || ny < 0 || nx >= g.xs.length || ny >= g.ys.length) return;
+    const k = ckey(g.xs[nx], g.ys[ny]);
+    if (_cells.has(k)){ selectCell(g.xs[nx], g.ys[ny], false); return; }
+  }
+}
+
+/* -------------------------------------------------------------- the maps */
 function drawMap(idxs){
   const keys = S.metric === "poster" ? ["pp","t60","mode1"] : [S.metric];
   const host = $("mapPlots");
@@ -114,10 +341,10 @@ function drawMap(idxs){
     return d;
   });
   keys.forEach((k,i)=>{
-    heatmap(divs[i].id, cellsOf(idxs, METRICS[k].get), METRICS[k]);
-    wireCellClick(divs[i].id, idxs);
+    heatmap(divs[i].id, accOf(k, idxs), METRICS[k]);
+    wireCellClick(divs[i].id, true);
   });
-  const acc = cellsOf(idxs, METRICS[keys[0]].get);
+  const acc = accOf(keys[0], idxs);
   const nclip = [...acc.values()].filter(e=>e.clip).length;
   $("mapNote").innerHTML = `<b>${acc.size}</b> of the campaign's `+
     `${DATA.campaign.counts.cells} cells are in this slice`+
@@ -130,7 +357,7 @@ function drawMap(idxs){
 /* The table-view twin: every number the colour carries, in text. */
 function drawMapTable(idxs, keys){
   if (!S.mapTable){ $("mapTable").classList.add("hidden"); return; }
-  const accs = keys.map(k=>cellsOf(idxs, METRICS[k].get));
+  const accs = keys.map(k=>accOf(k, idxs));
   const cells = new Map();
   accs.forEach((acc,j)=>{ for (const [k,e] of acc){
     let row = cells.get(k);
@@ -150,7 +377,7 @@ function drawMapTable(idxs, keys){
   $("mapTable").classList.remove("hidden");
 }
 
-/* ------------------------------------------------------------------ modes */
+/* ------------------------------------------------------------------ peaks */
 function drawModes(idxs){
   const med = medianSpectrum(idxs);
   const f = freqAxis();
@@ -193,7 +420,7 @@ function drawBand(idxs){
   const acc = normalised(bandCells(idxs, fc, half));
   heatmap("bandPlot", acc, {title:`${fc.toFixed(0)} Hz band`,
     unit:"rel.", hue:"blue"});
-  wireCellClick("bandPlot", idxs);
+  wireCellClick("bandPlot", true);
   const elec = m.kind === "electrical";
   $("bandTitle").textContent = `Where the ${fc.toFixed(0)} Hz content sits on the head`;
   $("bandSub").innerHTML = `Mean tail amplitude in ${fc.toFixed(0)} &plusmn; `+
@@ -208,7 +435,7 @@ function drawBand(idxs){
     `and this one will look noisier wherever one station dominates a cell.`;
 }
 
-/* ---------------------------------------------------------------- strikes */
+/* ------------------------------------------------------------------ table */
 /* Verdict and clipped sit EARLY, because they are the honesty columns and the
    table is the one thing here wide enough to scroll sideways: the reader must
    never have to go looking for "was this hit any good". The modes list is last
@@ -261,63 +488,20 @@ function drawStrikes(idxs){
   }).join("");
   $("strikeTable").innerHTML =
     `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  drawStrikeSpec(idxs);
 }
 
-function drawStrikeSpec(idxs){
-  if (S.strike === null || !DATA.strikes[S.strike]){
-    $("strikeTitle").textContent = "Pick a strike";
-    $("strikeSub").textContent = "Click any row above.";
-    $("svNote").classList.add("hidden");
-    StrikeView.clear();
-    Plotly.purge("strikePlot");
-    return;
-  }
-  /* The five measurement panels live in their own file, fetched on demand.
-     31 kB per strike, so a reader who only reads the table pays nothing. */
-  StrikeView.show(S.strike);
-  $("svNote").classList.remove("hidden");
-  const r = DATA.strikes[S.strike], f = freqAxis();
-  const sc = DATA.spectra.amp_scale;
-  const med = medianSpectrum(idxs);
-  const traces = [];
-  if (med) traces.push({type:"scatter", x:f, y:med, mode:"lines",
-    name:"median of the selection", line:{color:cssv("--series1"), width:2},
-    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
-  if (specOf(S.strike)) traces.push({type:"scatter", x:f,
-    y:Array.from(specOf(S.strike), v=>v/sc), mode:"lines",
-    name:"this strike", line:{color:cssv("--series2"), width:1.8},
-    hovertemplate:"%{x:.0f} Hz<br><b>%{y:.3g}</b><extra></extra>"});
-  linePlot("strikePlot", traces, {xtitle:"frequency (Hz)",
-    ytitle:"ring-down amplitude (rel.)", toolbar:true,
-    yaxis:{type:"log", showticklabels:false}});
-  const v = r.jam ? "a jam" : (r.used ? "kept by the operator" : "REJECTED by the operator");
-  $("strikeTitle").textContent =
-    `${r.mount.replace("mount","Mounting ")} · strike ${r.strike} at (${r.x}, ${r.y}) mm`;
-  $("strikeSub").innerHTML = `r/a ${r.r_over_a} · sensor station `+
-    `${r.station} at (${r.sensor_x}, ${r.sensor_y}) mm · pp ${r.pp_mv} mV`+
-    (r.clipped ? ` <b>(clipped: lower bound)</b>` : ``) +
-    ` · T60 ${r.T60_ms} ms (r² ${r.decay_r2}) · ${v}.`;
-}
-
-/* The panels carry fixed hues from the bench figure, but their axes and boxes
-   follow the theme, so a theme flip has to redraw them. */
-function redrawStrikeView(){ StrikeView.redraw(); }
-
-/* A square on any membrane map opens every strike that landed on it. The
-   handler is re-attached after each draw because Plotly.react replaces the
-   node's event bindings. */
-function wireCellClick(divId, idxs){
+/* A square on ANY map of the membrane picks that cell. From Maps or Peaks it
+   also carries the reader to Explore, where the hits are. The handler is
+   re-attached after each draw because Plotly.react replaces the node's event
+   bindings. */
+function wireCellClick(divId, jump){
   const el = $(divId);
   if (!el || !el.on) return;
   el.removeAllListeners && el.removeAllListeners("plotly_click");
   el.on("plotly_click", (ev) => {
     const pt = ev.points && ev.points[0];
     if (!pt) return;
-    const x = +pt.x, y = +pt.y;
-    const here = idxs.filter(i => DATA.strikes[i].x === x &&
-                                  DATA.strikes[i].y === y);
-    StrikeView.showCell(x, y, here);
+    selectCell(+pt.x, +pt.y, jump);
   });
 }
 
@@ -366,6 +550,15 @@ function buildFilters(){
       {id:"mode1", label:"dominant mode"}, {id:"snr", label:"SNR"},
       {id:"r2", label:"decay r²"},
     ], it=>S.metric === it.id, it=>{ S.metric = it.id; });
+  chips($("exMetric"), [
+      {id:"hits", label:"hits", title:"how many strikes landed on each cell"},
+      {id:"pp", label:"amplitude"}, {id:"t60", label:"T60"},
+      {id:"mode1", label:"dominant mode"},
+    ], it=>S.emetric === it.id, it=>{ S.emetric = it.id; });
+  chips($("exRate"), [
+      {id:1, label:"1×", title:"the rate the pickup sampled at"},
+      {id:0.5, label:"½×", title:"half speed, one octave down"},
+    ], it=>StrikeView.rate() === it.id, it=>{ StrikeView.setRate(it.id); });
   chips($("fMode"), c.modes.map((m,i)=>({id:i,
       label:`${m.hz.toFixed(0)} Hz`, title:`${m.label}: ${m.note}`})),
     it=>S.mode === it.id, it=>{ S.mode = it.id; S.bandC = null;
@@ -376,6 +569,24 @@ function buildFilters(){
 function toggle(set, id, all){
   if (set.has(id)) set.delete(id); else set.add(id);
   if (!set.size) all.forEach(v=>set.add(v));
+}
+
+/* The one line the filter bar shows when it is closed. A reader who never
+   opens the panel still knows what is being counted. */
+function filterSummary(){
+  const c = DATA.campaign, out = [];
+  const v = [...S.verdict];
+  out.push(S.verdict.size === 1 && S.verdict.has("used")
+    ? "strikes the operator kept" : "verdict: " + v.join(", "));
+  out.push(S.mounts.size === c.mounts.length ? "all mountings"
+    : [...S.mounts].map(m=>m.replace("mount","M")).sort().join(" "));
+  out.push(S.stations.size === c.stations_used.length ? "all stations"
+    : [...S.stations].map(s=>"S"+s).sort().join(" "));
+  if (S.clip === "yes") out.push("clipped only");
+  if (S.clip === "no") out.push("clean only");
+  if (S.raMin > 0 || S.raMax < 1)
+    out.push(`r/a ${S.raMin.toFixed(2)} to ${S.raMax.toFixed(2)}`);
+  return out.join(" · ");
 }
 
 function buildStats(){
@@ -400,29 +611,44 @@ function render(){
   if (SITE.part !== "data") return;
   const idxs = selection();
   $("fCount").innerHTML = `<b>${idxs.length}</b> / ${DATA.strikes.length} strikes`;
+  $("fSum").textContent = filterSummary();
   $("raOut").textContent = `${S.raMin.toFixed(2)} – ${S.raMax.toFixed(2)}`;
   $("bandGroup").classList.toggle("hidden", S.view !== "modes");
-  for (const v of ["map","modes","strikes"]){
+  for (const v of VIEWS){
     $("view-"+v).classList.toggle("hidden", v !== S.view);
     $("tab-"+v).setAttribute("aria-selected", String(v === S.view));
   }
   buildFilters();
   $("mapTableBtn").textContent = S.mapTable ? "hide table" : "table view";
   if (!idxs.length){
+    _cells = new Map();
     $("mapPlots").innerHTML = `<p class="sub">No strike matches these `+
       `filters. Widen the r/a range, or press reset.</p>`;
-    ["specPlot","bandPlot","strikePlot"].forEach(id=>Plotly.purge(id));
+    ["exMap","specPlot","bandPlot","strikePlot"].forEach(id=>Plotly.purge(id));
     $("strikeTable").innerHTML = "";
     $("mapNote").innerHTML = "";
     $("mapTable").classList.add("hidden");
     $("mapLegend").classList.add("hidden");
+    $("exTitle").textContent = "Nothing selected";
+    $("exSub").textContent = "No strike matches these filters. "+
+      "Open the filters and widen them, or press reset.";
+    $("exHits").innerHTML = "";
+    $("exPlay").disabled = true;
+    $("exAll").disabled = true;
+    $("exCompare").classList.add("hidden");
+    clearDetail();
     writeHash();
     return;
   }
   $("mapLegend").classList.remove("hidden");
-  if (S.view === "map") drawMap(idxs);
-  if (S.view === "modes") drawModes(idxs);
+  if (S.view === "explore") drawExplore(idxs);
+  if (S.view === "maps")    drawMap(idxs);
+  if (S.view === "modes")   drawModes(idxs);
   if (S.view === "strikes") drawStrikes(idxs);
+  /* Explore owns the cell, and the other views only read it, so the cell
+     index has to exist even when Explore is not the one on screen: the
+     table can send a strike here at any moment. */
+  if (S.view !== "explore") _cells = cellIndex(idxs);
   writeHash();
 }
 
@@ -431,6 +657,10 @@ function wire(){
   document.querySelectorAll(".tab").forEach(t=>{
     t.onclick = () => { S.view = t.dataset.view; render(); };
   });
+  $("fToggle").onclick = () => {
+    const open = $("fPanel").classList.toggle("hidden") === false;
+    $("fToggle").setAttribute("aria-expanded", String(open));
+  };
   $("raMin").oninput = e => {
     S.raMin = Math.min(+e.target.value, S.raMax); e.target.value = S.raMin; render(); };
   $("raMax").oninput = e => {
@@ -456,25 +686,58 @@ function wire(){
       render(); return;
     }
     const tr = e.target.closest("tr[data-i]");
-    if (tr){ S.strike = +tr.dataset.i; render(); }
+    if (tr) selectStrike(+tr.dataset.i);
   };
+
+  /* -------------------------------------------------------------- player */
+  $("exHits").onclick = (e) => {
+    const b = e.target.closest(".hit");
+    if (b) selectHit(+b.dataset.i, true);
+  };
+  $("exPlay").onclick = () => { if (S.strike !== null) StrikeView.play(S.strike); };
+  $("exAll").onclick = () => {
+    const e = S.cell && _cells.get(ckey(S.cell.x, S.cell.y));
+    if (e && e.list.length) StrikeView.playAll(e.list);
+  };
+  $("exCompare").onclick = () => {
+    const e = S.cell && _cells.get(ckey(S.cell.x, S.cell.y));
+    if (e) StrikeView.gallery(e.x, e.y, e.list);
+  };
+  /* The button and the row that is sounding are painted from the player's own
+     state, so a clip that ends on its own leaves nothing lit. */
+  StrikeView.onState = (i, on) => {
+    const b = $("exPlay");
+    b.classList.toggle("on", on && i === S.strike);
+    b.setAttribute("aria-label", on ? "stop" : "play this hit");
+    document.querySelectorAll("#exHits .hit").forEach(el=>{
+      el.classList.toggle("playing", on && +el.dataset.i === i);
+    });
+  };
+  StrikeView.onAdvance = (i) => selectHit(i, false);
+
+  /* Keys are bound to the map card, not to the window: a page that swallows
+     the arrow keys and the space bar everywhere cannot be scrolled. */
+  $("exMapCard").addEventListener("keydown", (e) => {
+    const t = e.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName)) return;
+    if (e.key === " " || e.key === "Enter"){
+      if (S.strike === null) return;
+      e.preventDefault();
+      StrikeView.play(S.strike);
+      return;
+    }
+    const step = {ArrowLeft:[-1,0], ArrowRight:[1,0],
+                  ArrowUp:[0,1], ArrowDown:[0,-1]}[e.key];
+    if (!step) return;
+    e.preventDefault();
+    moveCell(step[0], step[1]);
+  });
 }
 function syncInputs(){
   $("raMin").value = S.raMin; $("raMax").value = S.raMax;
   $("bandW").value = S.bandW;
   $("bandC").value = (S.bandC === null ? DATA.campaign.modes[S.mode].hz : S.bandC)
     .toFixed(0);
-}
-
-/* The cell gallery hands a strike back here so the whole app agrees on which
-   one is selected: the table highlights it, the hash carries it, and the five
-   panels draw. */
-function selectStrike(i){
-  S.strike = i;
-  S.view = "strikes";
-  render();
-  const el = $("strikeTitle");
-  if (el) el.scrollIntoView({behavior:"smooth", block:"start"});
 }
 
 function build(){
