@@ -21,6 +21,9 @@
               aria-selected="false">Method</button>
       <button class="part" role="tab" id="nav-data" data-part="data"
               aria-selected="false">Data</button>
+      <button class="part" role="tab" id="nav-refs" data-part="refs"
+              aria-selected="false"><span class="tabfull">References</span><span
+              class="tabshort">Refs</span></button>
     </div>
     <button class="themebtn" id="themebtn" type="button">theme</button>
   </div>
@@ -411,27 +414,17 @@
       </div>
       <div>
         <h3>References</h3>
-        <ul class="refs">
-          <li>Rothberg et&nbsp;al., <em>Opt. Lasers Eng.</em> (2017): laser
-            Doppler vibrometry review.</li>
-          <li>Li, Dieussaert &amp; Baets, <em>Sensors</em> (2022): miniaturizing
-            optical vibrometry.</li>
-          <li>Worland, <em>J. Acoust. Soc. Am.</em> (2010): drumhead mode maps
-            by ESPI.</li>
-          <li>Schroeder, <em>J. Acoust. Soc. Am.</em> (1965): decay by backward
-            integration.</li>
-          <li>ST188 and MCP6002 datasheets.</li>
-        </ul>
+        <p style="color:var(--ink2);font-size:14px">The papers behind the
+          vibrometry comparison, the mode shapes and the decay measurement have
+          their own tab.</p>
+        <button class="btn" type="button" data-part="refs"
+                style="margin-top:10px">Go to the references</button>
       </div>
     </div>
 
     <div class="cta">
-      <button class="btn primary part" data-part="method" type="button">
-        How a peak earns the name of a mode</button>
-      <button class="btn part" data-part="data" type="button">
-        Explore all 424 strikes</button>
-      <a class="btn" href="data/points.csv" download="drum_map_points.csv">
-        download the CSV</a>
+      <button class="btn primary totop" type="button">
+        <span aria-hidden="true">&uarr;</span> Back to the top</button>
     </div>
   </section>
 
@@ -790,10 +783,8 @@
     </div>
     <div class="tablewrap" id="constTable" style="max-height:none"></div>
     <div class="cta">
-      <button class="btn primary part" data-part="data" type="button">
-        Now go and check it on the data</button>
-      <button class="btn part" data-part="poster" type="button">
-        Back to the poster</button>
+      <button class="btn primary totop" type="button">
+        <span aria-hidden="true">&uarr;</span> Back to the top</button>
     </div>
   </section>
 
@@ -937,6 +928,87 @@
       here, and the ones that do not are why the verdicts exist.</div>
   </section>
   </main>
+
+</div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- =========================== REFERENCES ============================= -->
+<!-- ==================================================================== -->
+<div id="part-refs" class="hidden">
+<div class="wrap">
+
+  <header class="hero" style="min-height:auto;padding:44px 0 20px">
+    <div class="kicker">References</div>
+    <h1 style="max-width:22ch">What this project read before it measured
+      anything</h1>
+    <p class="lede" style="max-width:62ch;margin-top:16px;color:var(--ink2);
+       font-size:16px">The printed poster sends you here for its sources. Each
+      entry says what it gave this campaign. Titles link to the paper.</p>
+  </header>
+
+  <section class="chapter">
+    <div class="endgrid">
+      <div>
+        <h3>Measuring vibration without touching it</h3>
+        <ul class="refs">
+          <li><a href="https://doi.org/10.1016/j.optlaseng.2016.10.023"
+              target="_blank" rel="noopener">Rothberg et&nbsp;al.,
+              <em>Opt. Lasers Eng.</em> 99, 11&ndash;22 (2017)</a>. The review of
+              laser Doppler vibrometry: what the instrument this project is
+              measured against can do, and what it costs.</li>
+          <li><a href="https://doi.org/10.3390/s22134735" target="_blank"
+              rel="noopener">Li, Dieussaert &amp; Baets, <em>Sensors</em> 22(13),
+              4735 (2022)</a>. Shrinking a vibrometer onto a chip. The reason a
+              dollar sensor is worth asking about at all.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h3>The circular membrane</h3>
+        <ul class="refs">
+          <li><a href="https://doi.org/10.1121/1.391449" target="_blank"
+              rel="noopener">Christian, Davis, Tubis, Anderson, Mills &amp;
+              Rossing, <em>J. Acoust. Soc. Am.</em> 76(5), 1336&ndash;1345
+              (1984)</a>. Air loading on timpani membranes, and the
+              ideal-membrane baseline behind the (m,&thinsp;n) shapes this site
+              animates.</li>
+          <li><a href="https://doi.org/10.1121/1.3268605" target="_blank"
+              rel="noopener">Worland, <em>J. Acoust. Soc. Am.</em> 127(1),
+              525&ndash;533 (2010)</a>. Drumhead mode maps by electronic speckle
+              pattern interferometry. The picture a full optical bench gets of
+              the same thing this campaign maps one cell at a time.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h3>Decay</h3>
+        <ul class="refs">
+          <li>Schroeder, <em>J. Acoust. Soc. Am.</em> 37, 409&ndash;412 (1965).
+            Reverberation time by backward integration of the squared signal.
+            One of the two decay estimates on this site, and the one that
+            disagrees with the fit on more than half the strikes.</li>
+        </ul>
+      </div>
+
+      <div>
+        <h3>Parts</h3>
+        <ul class="refs">
+          <li>ST188 reflective optical sensor datasheet. The emitter and
+            phototransistor that watch the head.</li>
+          <li>Microchip MCP6002 datasheet. The op-amp behind the buffer and the
+            gain stage.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cta">
+      <button class="btn" type="button" data-part="poster">Back to the
+        poster</button>
+      <button class="btn primary totop" type="button">
+        <span aria-hidden="true">&uarr;</span> Back to the top</button>
+    </div>
+  </section>
 
 </div>
 </div>

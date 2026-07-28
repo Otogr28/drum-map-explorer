@@ -1,13 +1,15 @@
 "use strict";
 /* ===========================================================================
    Shared machinery: the data files, the theme, the part router and every
-   Plotly helper the three parts draw with. Loaded first; poster.js, method.js
+   Plotly helper the drawing parts use. Loaded first; poster.js, method.js
    and data.js all lean on what is defined here.
    =========================================================================== */
 
 const DATA = {};
 const $ = (id) => document.getElementById(id);
-const PARTS = ["poster", "method", "data"];
+/* Four tabs. The first three draw; `refs` is static markup and has no
+   enter() to call, so the router simply shows it. */
+const PARTS = ["poster", "method", "data", "refs"];
 
 /* Sequential single-hue ramps, the same ones the bench figures use. On a dark
    surface the ramp is reversed so "near zero" recedes toward the surface
@@ -501,8 +503,15 @@ Promise.all(["campaign","strikes","spectra","method"].map(n =>
     Poster.build();
     Method.build();
     wireTheme();
-    document.querySelectorAll(".part").forEach(b=>{
+    /* The nav tabs, plus any in-page button that names a part (the poster's
+       closing block sends the reader to the references this way). */
+    document.querySelectorAll("[data-part]").forEach(b=>{
       b.onclick = () => showPart(b.dataset.part, true);
+    });
+    /* The closing button of a part sends the reader back up to its own start.
+       The nav bar is always there for the other two parts. */
+    document.querySelectorAll(".totop").forEach(b=>{
+      b.onclick = () => window.scrollTo({top:0, behavior:"smooth"});
     });
     window.addEventListener("scroll", updateProgress, {passive:true});
     window.addEventListener("resize", () => {

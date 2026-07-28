@@ -1,9 +1,10 @@
 /* ==========================================================================
-   Drum map explorer: one static page, three parts.
+   Drum map explorer: one static page, four parts.
 
    Poster   a scroll driven read of the printed poster, figures drawn live
    Method   how a peak earns the right to be called a mode
    Data     the original explorer, filters and plots, unchanged
+   Refs     the printed poster's source list, which lives here now
 
    The palette is the drumlab bench idiom (paper background, mono for every
    number, strike red and laser purple, single hue ramps for magnitude) with
@@ -67,7 +68,7 @@ a{color:var(--series1)}
 img{max-width:100%}
 
 /* ====================================================================== nav
-   One bar, three parts, always reachable. It is the only thing on the page
+   One bar, four parts, always reachable. It is the only thing on the page
    that never scrolls away, because a reader who lands here from a QR code
    needs to know in one glance that the data is one tap from the poster. */
 .topnav{position:sticky;top:0;z-index:60;background:var(--bg);
@@ -83,6 +84,15 @@ img{max-width:100%}
 .part:hover{color:var(--ink);background:var(--panel2)}
 .part[aria-selected="true"]{color:var(--panel);background:var(--ink);
   font-weight:600}
+/* Four tabs plus the brand plus the theme button do not fit a phone. Below
+   620px the brand goes and the fourth tab uses its short name. */
+.tabshort{display:none}
+@media (max-width:620px){
+  .brand{display:none}
+  .part{padding:7px 10px;font-size:13px}
+  .tabfull{display:none}
+  .tabshort{display:inline}
+}
 .themebtn{background:var(--panel);border:1px solid var(--line);color:var(--ink2);
   border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}
 .themebtn:hover{border-color:var(--ink2)}
@@ -240,7 +250,10 @@ img{max-width:100%}
 .refs{list-style:none;font-size:13.5px;color:var(--ink2)}
 .refs li{margin-bottom:7px;padding-left:15px;position:relative;line-height:1.4}
 .refs li::before{content:"\25B8";position:absolute;left:0;color:var(--navy2)}
-.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+/* one button now, the way back up, so it sits in the middle */
+.cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;
+  justify-content:center}
+.cta .btn{padding:9px 20px;font-size:13.5px}
 
 /* ====================================================== the strike panels
    The bench figure's layout: the waveform across the top, then decay against

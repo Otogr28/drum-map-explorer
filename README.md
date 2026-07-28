@@ -4,11 +4,11 @@ The web companion to the poster *Exploring the Vibrations of a Circular
 Membrane with a Low-Cost Optical Sensor* (Otoniel Matute Cruz, Oleksiy
 Svitelskiy PI, Department of Physics, Gordon College).
 
-One static page in three parts. Scan the QR on the poster and you land here.
+One static page in four parts. Scan the QR on the poster and you land here.
 
 **Live site:** https://otogr28.github.io/drum-map-explorer/
 
-## The three parts
+## The four parts
 
 ### Poster
 
@@ -75,6 +75,14 @@ lives in the URL, so any slice of this dataset is a link you can send.
 `points.csv` is a verbatim copy of the campaign's own aggregate file, and the
 download button hands it to you unchanged.
 
+### References
+
+The printed poster's source list. It moved here on 2026-07-28 so the poster
+could give that space to Method, and the QR box on the sheet now reads
+"Explore the Data Yourself & references". Static markup, no data behind it:
+the vibrometry papers, the membrane papers, Schroeder, and the two datasheets,
+each with a line on what it gave this campaign.
+
 ## How to read this honestly
 
 - Strikes the operator **rejected** at the bench, and any jams, are kept in the
@@ -109,7 +117,7 @@ download button hands it to you unchanged.
 ## What is in this repo
 
 ```
-index.html                     the shell: nav, three parts, all the copy
+index.html                     the shell: nav, four parts, all the copy
 css/site.css                   theme, scrollytelling layout, print styles
 js/core.js                     data load, theme, router, dsp, Plotly helpers
 js/scrolly.js                  which step is current, and telling the figure
