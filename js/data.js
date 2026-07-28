@@ -633,8 +633,7 @@ function buildStats(){
     c.honesty.map(h=>`<li>${h}</li>`).join("") +
     `<li>Campaign <code>${c.run}</code>, measured ${c.date}. `+
     `Membrane: ${c.membrane.diameter_mm} mm ${c.membrane.material}, `+
-    `${c.membrane.note}.</li>`+
-    `<li>Lobe axis ${c.axis_deg}&deg;: ${c.axis_note}.</li></ul>`;
+    `${c.membrane.note}.</li></ul>`;
 }
 
 /* =================================================================== render */
