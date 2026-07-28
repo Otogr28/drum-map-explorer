@@ -12,7 +12,7 @@
      stylesheet and scripts from cache. That pair is worse than either half
      being old: the markup asks for behaviour the old script does not wire.
      Bump the token on any publish that changes css/ or js/. -->
-<link rel="stylesheet" href="css/site.css?v=20260728g">
+<link rel="stylesheet" href="css/site.css?v=20260728j">
 </head>
 <body>
 
@@ -808,7 +808,8 @@
       <span class="count" id="fCount"></span>
       <span class="fsum" id="fSum"></span>
       <span class="fspacer"></span>
-      <button class="btn" id="reset" type="button">reset filters</button>
+      <button class="btn" id="reset" type="button">reset<span
+        class="wide">&nbsp;filters</span></button>
       <a class="btn primary" id="dl" href="data/points.csv"
          download="drum_map_points.csv">CSV</a>
     </div>
@@ -1117,13 +1118,13 @@
    document.write is deliberate: it keeps the load synchronous, so the app
    scripts below still find window.Plotly. */
 if (!window.Plotly) document.write(
-  '<script src="vendor/plotly-cartesian.min.js?v=20260728g"><\/script>');
+  '<script src="vendor/plotly-cartesian.min.js?v=20260728j"><\/script>');
 </script>
-<script src="js/scrolly.js?v=20260728g"></script>
-<script src="js/strikeview.js?v=20260728g"></script>
-<script src="js/data.js?v=20260728g"></script>
-<script src="js/poster.js?v=20260728g"></script>
-<script src="js/method.js?v=20260728g"></script>
-<script src="js/core.js?v=20260728g"></script>
+<script src="js/scrolly.js?v=20260728j"></script>
+<script src="js/strikeview.js?v=20260728j"></script>
+<script src="js/data.js?v=20260728j"></script>
+<script src="js/poster.js?v=20260728j"></script>
+<script src="js/method.js?v=20260728j"></script>
+<script src="js/core.js?v=20260728j"></script>
 </body>
 </html>

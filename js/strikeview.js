@@ -224,7 +224,12 @@ const StrikeView = (() => {
       hovertemplate:"%{x:.0f} ms &nbsp; %{y:.0f} Hz<br><b>%{z:.0f}</b> dB"+
         "<extra></extra>",
     }], baseLayout({
-      margin:{l:52, r:12, t:28, b:58},
+      /* ONE margin key. There were two, and the second one (undefined for the
+         labelled panel) won, so Plotly fell back to its own 80 px defaults:
+         160 px of horizontal margin. On a 1078 px desktop panel that was
+         invisible, on a 338 px phone it left the spectrogram 140 px wide with
+         a field of white around it. */
+      margin: bare ? {l:34, r:6, t:22, b:32} : {l:52, r:12, t:28, b:58},
       xaxis:{title:{text: bare ? "" : "time (ms)", font:{size:11}, standoff:6},
         zeroline:false, showgrid:false, linecolor:cssv("--baseline"),
         ticks:"outside", ticklen:3, tickcolor:cssv("--baseline"),
@@ -233,7 +238,6 @@ const StrikeView = (() => {
         zeroline:false, showgrid:false, linecolor:cssv("--baseline"),
         ticks:"outside", ticklen:3, tickcolor:cssv("--baseline"),
         range:[0, y[y.length-1]]},
-      margin: bare ? {l:34, r:6, t:22, b:32} : undefined,
     }, boxOf($(div))), CFG_BARE);
     settle(div);
   }

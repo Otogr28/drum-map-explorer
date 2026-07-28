@@ -42,7 +42,13 @@ function baseLayout(extra, box){
   };
   return Object.assign(L, extra||{}, box||{});
 }
-const CFG = {responsive:true, displaylogo:false,
+/* A phone has no hover, so Plotly leaves the toolbar on permanently and it
+   lands on top of the legend of every panel. Nobody box-zooms with a thumb
+   anyway: on a coarse pointer the toolbar goes, and tap to read a value and
+   tap to pick a cell stay. */
+const COARSE = typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer:coarse)").matches;
+const CFG = {responsive:true, displaylogo:false, displayModeBar: !COARSE,
   modeBarButtonsToRemove:["select2d","lasso2d","autoScale2d","toggleSpikelines"]};
 /* Narrative figures keep hover and lose the toolbar: on the Poster and Method
    parts the reader is being told something, and a row of camera and zoom icons

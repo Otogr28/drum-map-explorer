@@ -640,7 +640,8 @@ function buildStats(){
 function render(){
   if (SITE.part !== "data") return;
   const idxs = selection();
-  $("fCount").innerHTML = `<b>${idxs.length}</b> / ${DATA.strikes.length} strikes`;
+  $("fCount").innerHTML = `<b>${idxs.length}</b> / ${DATA.strikes.length}`+
+    `<span class="wide"> strikes</span>`;
   $("fSum").textContent = filterSummary();
   $("raOut").textContent = `${S.raMin.toFixed(2)} – ${S.raMax.toFixed(2)}`;
   $("bandGroup").classList.toggle("hidden", S.view !== "modes");

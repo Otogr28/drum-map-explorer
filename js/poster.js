@@ -217,15 +217,22 @@ const Poster = (() => {
     surf.raf = requestAnimationFrame(tick);
   }
 
+  /* Measure the CANVAS, not its parent, and set only the backing store. The
+     old version wrote cv.style.width from the parent's rect, which on a phone
+     fed back: the canvas held the column open, the layout viewport widened,
+     the vw padding grew, the next resize measured wider, and the Poster part
+     ran away to 5742 px on a 390 px screen. CSS owns the layout size now
+     (width:100%, height:100%, max-width:100%), and this only keeps the pixels
+     sharp. */
   function sizeCanvas(){
     surf.dpr = Math.min(2, window.devicePixelRatio || 1);
     for (const cv of surf.canvases){
-      const box = cv.parentElement.getBoundingClientRect();
+      const box = cv.getBoundingClientRect();
       if (!box.width || !box.height) continue;
-      cv.width = Math.max(1, Math.round(box.width * surf.dpr));
-      cv.height = Math.max(1, Math.round(box.height * surf.dpr));
-      cv.style.width = box.width + "px";
-      cv.style.height = box.height + "px";
+      const w = Math.max(1, Math.round(box.width * surf.dpr));
+      const h = Math.max(1, Math.round(box.height * surf.dpr));
+      if (cv.width !== w) cv.width = w;
+      if (cv.height !== h) cv.height = h;
     }
     paint();
   }
@@ -259,12 +266,21 @@ const Poster = (() => {
       const p = e.touches ? e.touches[0] : e;
       surf.drag = {x:p.clientX, y:p.clientY, yaw:surf.yaw, elev:surf.elev};
     };
+    /* On a phone this canvas is half the screen and it is pinned there while
+       the chapter is read, so a finger that lands on it and swipes up has to
+       scroll the page. CSS gives the browser the vertical axis (touch-action
+       pan-y) and we keep the horizontal one: swipe across to turn the shape,
+       swipe up to keep reading. The tilt stays on the mouse, where there is a
+       scroll wheel for the page and no gesture to steal. */
     const move = (e) => {
       if (!surf.drag) return;
-      const p = e.touches ? e.touches[0] : e;
-      surf.yaw = surf.drag.yaw + (p.clientX - surf.drag.x) * 0.01;
-      surf.elev = Math.max(ELEV_MIN, Math.min(ELEV_MAX,
-        surf.drag.elev + (p.clientY - surf.drag.y) * 0.005));
+      const touch = !!e.touches;
+      const p = touch ? e.touches[0] : e;
+      const dx = p.clientX - surf.drag.x, dy = p.clientY - surf.drag.y;
+      if (touch && Math.abs(dy) > Math.abs(dx)) return;   // the page's gesture
+      surf.yaw = surf.drag.yaw + dx * 0.01;
+      if (!touch) surf.elev = Math.max(ELEV_MIN, Math.min(ELEV_MAX,
+        surf.drag.elev + dy * 0.005));
       if (e.cancelable) e.preventDefault();
       paint();
     };
