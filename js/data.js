@@ -113,8 +113,10 @@ function drawMap(idxs){
     host.appendChild(d);
     return d;
   });
-  keys.forEach((k,i)=>heatmap(divs[i].id, cellsOf(idxs, METRICS[k].get),
-                              METRICS[k]));
+  keys.forEach((k,i)=>{
+    heatmap(divs[i].id, cellsOf(idxs, METRICS[k].get), METRICS[k]);
+    wireCellClick(divs[i].id, idxs);
+  });
   const acc = cellsOf(idxs, METRICS[keys[0]].get);
   const nclip = [...acc.values()].filter(e=>e.clip).length;
   $("mapNote").innerHTML = `<b>${acc.size}</b> of the campaign's `+
@@ -191,6 +193,7 @@ function drawBand(idxs){
   const acc = normalised(bandCells(idxs, fc, half));
   heatmap("bandPlot", acc, {title:`${fc.toFixed(0)} Hz band`,
     unit:"rel.", hue:"blue"});
+  wireCellClick("bandPlot", idxs);
   const elec = m.kind === "electrical";
   $("bandTitle").textContent = `Where the ${fc.toFixed(0)} Hz content sits on the head`;
   $("bandSub").innerHTML = `Mean tail amplitude in ${fc.toFixed(0)} &plusmn; `+
@@ -300,6 +303,23 @@ function drawStrikeSpec(idxs){
 /* The panels carry fixed hues from the bench figure, but their axes and boxes
    follow the theme, so a theme flip has to redraw them. */
 function redrawStrikeView(){ StrikeView.redraw(); }
+
+/* A square on any membrane map opens every strike that landed on it. The
+   handler is re-attached after each draw because Plotly.react replaces the
+   node's event bindings. */
+function wireCellClick(divId, idxs){
+  const el = $(divId);
+  if (!el || !el.on) return;
+  el.removeAllListeners && el.removeAllListeners("plotly_click");
+  el.on("plotly_click", (ev) => {
+    const pt = ev.points && ev.points[0];
+    if (!pt) return;
+    const x = +pt.x, y = +pt.y;
+    const here = idxs.filter(i => DATA.strikes[i].x === x &&
+                                  DATA.strikes[i].y === y);
+    StrikeView.showCell(x, y, here);
+  });
+}
 
 /* ==================================================================== chips */
 function chips(host, items, isOn, onClick, cls){
@@ -446,6 +466,17 @@ function syncInputs(){
     .toFixed(0);
 }
 
+/* The cell gallery hands a strike back here so the whole app agrees on which
+   one is selected: the table highlights it, the hash carries it, and the five
+   panels draw. */
+function selectStrike(i){
+  S.strike = i;
+  S.view = "strikes";
+  render();
+  const el = $("strikeTitle");
+  if (el) el.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
 function build(){
   readHash();
   buildStats();
@@ -454,5 +485,5 @@ function build(){
 }
 function enter(){ render(); }
 
-return {build, enter, render};
+return {build, enter, render, selectStrike};
 })();

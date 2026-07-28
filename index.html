@@ -48,9 +48,8 @@
     <div class="affil">Department of Physics, Gordon College &middot;
       Wenham, MA</div>
     <div class="heroart">
-      <canvas class="membrane" width="300" height="300"
-              style="width:132px;height:132px;border-radius:50%;border:1px solid var(--line)"
-              aria-label="animated membrane mode"></canvas>
+      <img class="modegif" src="assets/modes/mode01.gif" alt="the (0,1) mode of a circular membrane, animated"
+           style="width:150px;height:auto">
       <p style="max-width:44ch;color:var(--ink2)">A drumhead never rings at a
         single pitch. This is a map of every pitch one 50&nbsp;mm printed head
         rings at, measured with an infrared sensor that costs about a dollar.</p>
@@ -103,12 +102,14 @@
       </div>
       <div class="sticky">
         <figure class="stage">
-          <div style="flex:1;display:flex;align-items:center;justify-content:center">
-            <canvas class="membrane" width="300" height="300"
-                    style="width:min(78%,340px);aspect-ratio:1;border-radius:50%;border:1px solid var(--line)"
-                    aria-label="animated membrane mode"></canvas>
+          <div class="modebox">
+            <img class="modegif" id="modeGif" src="assets/modes/mode01.gif"
+                 alt="an animated vibration mode of a circular membrane">
           </div>
           <figcaption id="modeCaption"></figcaption>
+          <figcaption class="credit">Animations by Oleg Alexandrov, released
+            into the public domain, via Wikimedia Commons
+            (<em>Drum vibration mode</em> series).</figcaption>
         </figure>
       </div>
     </div>
@@ -162,11 +163,13 @@
       </div>
       <div class="sticky">
         <figure class="stage">
-          <img class="photo" id="senseExploded" src="assets/exploded.png"
-               alt="Exploded view: clamp ring, drum body, striker mount"
+          <img class="photo" id="senseExploded" src="assets/rig.jpg"
+               alt="The rig on the optical table: the printed drum clamped in its
+                    holder, the sensor arm above it, the two axis stage below"
                loading="lazy">
-          <img class="photo cover hidden" id="senseBench" src="assets/bench.jpg"
-               alt="The drum assembled on the two axis stage" loading="lazy">
+          <img class="photo hidden" id="senseBench" src="assets/sensor.jpg"
+               alt="Close up: the ST188 sensor looking down at the printed
+                    membrane inside its clamp ring" loading="lazy">
           <figcaption id="senseCap"></figcaption>
         </figure>
       </div>
@@ -919,6 +922,18 @@
         integrate, next to the median of every strike passing the filters.</p>
       <div class="plot wide" id="strikePlot"></div>
     </div>
+  </section>
+
+  <!-- Populated by clicking a square on ANY map of the membrane. It sits
+       outside the three view sections so a click in Map or in Modes both
+       land here. -->
+  <section id="cellCard" class="card hidden">
+    <h2 id="cellTitle"></h2>
+    <p class="sub" id="cellSub"></p>
+    <div class="cellgrid" id="cellGrid"></div>
+    <div class="note">Every strike at one place on the head. The campaign
+      fires more than once per cell on purpose: hits that agree look alike
+      here, and the ones that do not are why the verdicts exist.</div>
   </section>
   </main>
 

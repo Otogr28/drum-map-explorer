@@ -191,9 +191,10 @@ const StrikeView = (() => {
   }
 
   /* ---------------------------------------------------------- spectrogram */
-  function drawGram(d){
+  function drawGram(d, into, bare){
+    const div = into || "svGram";
     const g = d.gram;
-    if (!g){ Plotly.purge("svGram"); return; }
+    if (!g){ Plotly.purge(div); return; }
     const q = u8(g.z), z = [];
     for (let i = 0; i < g.nf; i++){
       const row = new Array(g.nt);
@@ -203,9 +204,10 @@ const StrikeView = (() => {
     }
     const x = Array.from({length:g.nt}, (_,j)=>g.t0_ms + j*(g.dt_ms||1));
     const y = Array.from({length:g.nf}, (_,i)=>g.f0 + i*g.df);
-    Plotly.react("svGram", [{
+    Plotly.react(div, [{
       type:"heatmap", x, y, z, colorscale:MAGMA, zmin:g.floor_db, zmax:0,
       zsmooth:"best",
+      showscale: !bare,
       colorbar:{title:{text:"dB re max", side:"right", font:{size:10}},
         thickness:10, len:0.9, outlinewidth:0, tickfont:{size:9},
         tickcolor:cssv("--baseline"), ticklen:3},
@@ -213,16 +215,17 @@ const StrikeView = (() => {
         "<extra></extra>",
     }], baseLayout({
       margin:{l:52, r:12, t:28, b:58},
-      xaxis:{title:{text:"time (ms)", font:{size:11}, standoff:6},
+      xaxis:{title:{text: bare ? "" : "time (ms)", font:{size:11}, standoff:6},
         zeroline:false, showgrid:false, linecolor:cssv("--baseline"),
         ticks:"outside", ticklen:3, tickcolor:cssv("--baseline"),
         range:[x[0], x[x.length-1]]},
-      yaxis:{title:{text:"Hz", font:{size:11}, standoff:8},
+      yaxis:{title:{text: bare ? "" : "Hz", font:{size:11}, standoff:8},
         zeroline:false, showgrid:false, linecolor:cssv("--baseline"),
         ticks:"outside", ticklen:3, tickcolor:cssv("--baseline"),
         range:[0, y[y.length-1]]},
-    }, boxOf($("svGram"))), CFG_BARE);
-    settle("svGram");
+      margin: bare ? {l:34, r:6, t:22, b:32} : undefined,
+    }, boxOf($(div))), CFG_BARE);
+    settle(div);
   }
 
   /* --------------------------------------------------------------- radar */
@@ -265,7 +268,7 @@ const StrikeView = (() => {
     drawWave(d, r);
     drawDecay(d);
     drawSpec(d);
-    drawGram(d);
+    drawGram(d, "svGram", false);
     drawRadar(d);
     $("svNote").innerHTML =
       `Display branch: <b>${(d.steps_d || []).join(" &rarr; ") || "raw"}</b>. `+
@@ -306,10 +309,84 @@ const StrikeView = (() => {
     $("svBoot").classList.add("hidden");
   }
 
+  /* ============================================================ one cell
+     Click a square on any map of the membrane and get every strike that
+     landed there, each as its own spectrogram. Three hits at one cell look
+     alike when they agree and obviously different when they do not, which is
+     the whole reason the campaign fires more than once per cell.
+
+     One file per strike, so a cell with six hits costs six fetches. They run
+     together and the card fills in as they land. */
+  const fetchStrike = (i) => cache.has(i)
+    ? Promise.resolve(cache.get(i))
+    : fetch(`data/strikes/${i}.json`)
+        .then(r => { if (!r.ok) throw new Error(String(r.status));
+                     return r.json(); })
+        .then(d => { cache.set(i, d); return d; });
+
+  let cellToken = 0;
+
+  function showCell(x, y, idxs){
+    const token = ++cellToken;
+    const card = $("cellCard"), host = $("cellGrid");
+    card.classList.remove("hidden");
+    $("cellTitle").textContent = `The cell at (${x}, ${y}) mm`;
+    if (!idxs.length){
+      $("cellSub").textContent = "No strike here passes the filters above.";
+      host.innerHTML = "";
+      return;
+    }
+    const r0 = DATA.strikes[idxs[0]];
+    $("cellSub").innerHTML = `<b>${idxs.length}</b> strike`+
+      (idxs.length === 1 ? "" : "s") + ` at r/a ${r0.r_over_a}, one `+
+      `spectrogram each, in the order they were struck. Click one for its `+
+      `full measurement view.`;
+
+    host.innerHTML = idxs.map(i => {
+      const r = DATA.strikes[i];
+      const v = r.jam ? ["no","jam"] : (r.used ? ["ok","used"] : ["no","rejected"]);
+      return `<figure class="cellitem" data-i="${i}">
+        <div class="plot cellgram" id="cg_${i}"></div>
+        <figcaption>
+          <b>${r.mount.replace("mount","M")} &middot; strike ${r.strike}</b>
+          <span class="pill ${v[0]}"><span>${v[1]}</span></span>
+          ${r.clipped ? '<span class="pill no"><span>clipped</span></span>' : ""}
+          <br>S${r.station} &middot; pp ${r.pp_mv} mV &middot; T60 ${r.T60_ms} ms
+          &middot; ${(r.modes_hz||[]).slice(0,2).map(f=>f.toFixed(0)+" Hz")
+                       .join(" / ") || "no mode picked"}
+        </figcaption>
+      </figure>`;
+    }).join("");
+
+    idxs.forEach(i => {
+      fetchStrike(i)
+        .then(d => { if (token === cellToken) drawGram(d, `cg_${i}`, true); })
+        .catch(() => {
+          if (token !== cellToken) return;
+          const el = $(`cg_${i}`);
+          if (el) el.innerHTML = `<p class="sub">could not load</p>`;
+        });
+    });
+
+    host.onclick = (e) => {
+      const f = e.target.closest(".cellitem");
+      if (!f) return;
+      const i = +f.dataset.i;
+      Data.selectStrike(i);
+    };
+    card.scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+  function clearCell(){
+    cellToken++;
+    $("cellCard").classList.add("hidden");
+    $("cellGrid").innerHTML = "";
+  }
+
   function redraw(){
     if (pending !== null && cache.has(pending))
       render(cache.get(pending), DATA.strikes[pending], pending);
   }
 
-  return {show, clear, redraw};
+  return {show, clear, redraw, showCell, clearCell};
 })();
