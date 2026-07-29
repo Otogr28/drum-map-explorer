@@ -475,6 +475,11 @@ function showPart(part, push){
     $("nav-"+p).setAttribute("aria-selected", String(p === part));
   }
   $("filters").classList.toggle("hidden", part !== "data");
+  /* Snap off before anything moves. A part switch jumps to the top, and a
+     snap container asked to land on 0 with a card within reach lands on the
+     card instead, which would drop the reader past the title of the part they
+     just opened. It goes back on below, once the page is where it belongs. */
+  document.documentElement.classList.remove("snap");
   if (push){
     const q = new URLSearchParams(location.hash.slice(1));
     q.set("part", part);
@@ -492,6 +497,12 @@ function showPart(part, push){
   if (part === "poster") Poster.enter();
   if (part === "method") Method.enter();
   if (part === "data")   Data.enter();
+  /* The card snap belongs to the two scroll driven parts. Data is a filter
+     page: it stays where the reader put it and nothing pulls it anywhere. */
+  if (part === "poster" || part === "method"){
+    requestAnimationFrame(
+      () => document.documentElement.classList.add("snap"));
+  }
   updateProgress();
 }
 
