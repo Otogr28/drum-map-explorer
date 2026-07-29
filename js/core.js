@@ -289,11 +289,19 @@ function linePlot(divId, traces, o){
   const legend = o.legend !== false && traces.length > 1;
   Plotly.react(divId, traces, baseLayout({
     showlegend: legend,
-    legend:{orientation:"h", y:1.14, x:0, font:{size:11},
-            bgcolor:"rgba(0,0,0,0)"},
+    /* Anchored by its BOTTOM edge just above the axes, so a legend that wraps
+       to two or three lines grows up into the margin. Anchored by the top at
+       y=1.14 it grew downward instead, and on a phone the four series of the
+       vibration panel wrapped and printed straight over the trace. */
+    /* Smaller type on a phone, because a horizontal legend that fits two
+       entries per line instead of one gives the trace back half the panel. */
+    legend:{orientation:"h", y:1.02, yanchor:"bottom", x:0,
+            font:{size: COARSE ? 9.5 : 11}, bgcolor:"rgba(0,0,0,0)"},
     /* 58 at the bottom, not 44: the axis title needs a line of its own under
        the tick labels or it prints straight through them. */
-    margin: o.margin || {l:56, r:12, t:legend?50:28, b:58},
+    /* 62 with a legend, not 50: on a narrow panel it takes two lines and the
+       reserved strip has to hold them both. */
+    margin: o.margin || {l:56, r:12, t:legend?62:28, b:58},
     xaxis:Object.assign({title:{text:o.xtitle||"", font:{size:11}, standoff:6},
       gridcolor:cssv("--grid"), zeroline:false, linecolor:cssv("--baseline"),
       ticks:"outside", ticklen:3, tickcolor:cssv("--baseline")}, o.xaxis||{}),
@@ -476,6 +484,10 @@ function showPart(part, push){
     }
     history.replaceState(null, "", "#"+q.toString());
     window.scrollTo({top:0, behavior:"auto"});
+    /* A new part starts at the top, so the bar comes back with it rather than
+       waiting for the first scroll event to notice. */
+    document.documentElement.classList.remove("navtuck");
+    _tucked = false; _tuckY = 0;
   }
   if (part === "poster") Poster.enter();
   if (part === "method") Method.enter();
@@ -484,6 +496,31 @@ function showPart(part, push){
 }
 
 const SITE = {part:"poster"};
+
+/* ================================================================ nav tuck
+   On a phone the bar is 53 px of an 844 px screen and it is there the whole
+   way down. Tuck it while the reader is moving down and bring it back the
+   moment they move up, reach the top, or reach the end. The class goes on
+   <html> and the CSS only acts under 820 px, so a desktop never loses it.
+
+   The sticky offsets move with it. Leave them at 53 px and a tucked bar
+   leaves a strip of nothing above the filter bar and the pinned figure. */
+const TUCK_AT = 140, TUCK_STEP = 8, TUCK_END = 90;
+let _tuckY = 0, _tucked = false;
+function navTuck(){
+  const y = Math.max(0, window.scrollY);
+  const doc = document.documentElement;
+  const end = y + window.innerHeight >= doc.scrollHeight - TUCK_END;
+  let want = _tucked;
+  if (y < TUCK_AT || end) want = false;
+  else if (y > _tuckY + TUCK_STEP) want = true;
+  else if (y < _tuckY - TUCK_STEP) want = false;
+  if (want !== _tucked){
+    _tucked = want;
+    doc.classList.toggle("navtuck", want);
+  }
+  if (Math.abs(y - _tuckY) > 4) _tuckY = y;
+}
 
 /* The thin bar under the nav. It measures the part the reader is in, so the
    Poster and Method parts show how much of the story is left. */
@@ -540,7 +577,8 @@ Promise.all(["campaign","strikes","spectra","method"].map(n =>
     document.querySelectorAll(".totop").forEach(b=>{
       b.onclick = () => window.scrollTo({top:0, behavior:"smooth"});
     });
-    window.addEventListener("scroll", updateProgress, {passive:true});
+    window.addEventListener("scroll", () => { updateProgress(); navTuck(); },
+                            {passive:true});
     window.addEventListener("resize", () => {
       clearTimeout(SITE._rt);
       SITE._rt = setTimeout(redrawAll, 180);
