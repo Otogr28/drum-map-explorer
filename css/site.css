@@ -140,15 +140,36 @@ img{max-width:100%}
    as current, and the visual answers. The page never traps the scroll: a
    reader who keeps swiping keeps moving, which is what a phone at a poster
    session needs. */
-.chapter{padding:56px 0 10px}
+.chapter{padding:56px 0 10px;--head-h:0px}
 .chapter > .head{max-width:62ch;margin-bottom:10px}
+/* In a chapter with a pinned figure the title stays with the figure. It used
+   to scroll off the top and leave the reader several cards deep with nothing
+   on screen naming the section. Only the kicker and the h2 pin: the whole head
+   runs to 254 px on a phone, a quarter of the screen, and the opening
+   paragraph has been read by then anyway. That is why the paragraph is a
+   sibling `.lede` and not a child of `.head`: a sticky box sticks inside its
+   own containing block, so the part that pins has to be the chapter's own
+   child.
+
+   Full width, with the measure kept on the children. The box is what hides the
+   cards passing under it, and at 62ch it would have hidden only the left half
+   of a `flip` chapter. */
+.chapter:has(.scrolly) > .head{position:sticky;top:53px;z-index:6;
+  max-width:none;background:var(--bg);padding-bottom:9px;margin-bottom:1px}
+.chapter:has(.scrolly) > .head > *{max-width:62ch}
+/* A card sliding under the title gets cut in half by the edge of the box. The
+   fade takes the cut off. It is background over background, so at rest, with
+   nothing under it, it cannot be seen. */
+.chapter:has(.scrolly) > .head::after{content:"";position:absolute;
+  left:0;right:0;top:100%;height:13px;pointer-events:none;
+  background:linear-gradient(var(--bg),transparent)}
 .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--navy2)}
 .chapter h2{font-family:var(--serif);font-size:clamp(23px,3.4vw,36px);
   line-height:1.14;color:var(--navy);margin-top:7px;letter-spacing:-0.008em;
   text-wrap:balance}
-.chapter .head p{color:var(--ink2);margin-top:10px;font-size:16px;
-  max-width:60ch}
+.chapter .head p,.chapter > .lede{color:var(--ink2);margin-top:10px;
+  font-size:16px;max-width:60ch}
 
 .scrolly{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);
   gap:clamp(16px,3vw,44px);align-items:start;margin-top:8px}
@@ -164,7 +185,13 @@ img{max-width:100%}
 canvas{max-width:100%}
 .scrolly.flip .steps{order:2}
 .scrolly.flip .sticky{order:1}
-.sticky{position:sticky;top:74px;height:min(74vh,660px);display:flex;
+/* The figure hangs under the pinned title, so both offsets carry the title's
+   own height. `--head-h` is measured per chapter by `syncHeads` in core.js,
+   because an h2 that wraps to two lines is 40 px taller than one that does not
+   and no CSS length knows which is which. The height keeps the bottom of the
+   figure off the bottom of the screen on a short window too. */
+.sticky{position:sticky;top:calc(74px + var(--head-h));
+  height:min(calc(100vh - 120px - var(--head-h)),660px);display:flex;
   flex-direction:column;justify-content:center}
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:12px;height:100%;display:flex;flex-direction:column;min-height:0;
@@ -212,7 +239,8 @@ canvas{max-width:100%}
    reader finishes the chapter looking at nothing. It only has to cover the
    figure, so it is the height of the figure minus the half step under the last
    card, and not a screenful: the rest was showing as a blank gap at every
-   chapter boundary.
+   chapter boundary. The pinned title pushed the figure down, which is why this
+   is 28vh and not the 24vh that was enough before it existed.
 
    The steps were 78vh apart, which is one card on screen and a screenful of
    nothing under it. They now sit close enough that two or three share the
@@ -230,7 +258,7 @@ canvas{max-width:100%}
    the figure has reached its pinned offset, and the chapter opens on a figure
    sitting low with its caption under the fold. Enough column above the first
    card and the figure is already pinned when that card is read. */
-.steps{display:flex;flex-direction:column;padding-top:14vh;padding-bottom:24vh}
+.steps{display:flex;flex-direction:column;padding-top:14vh;padding-bottom:28vh}
 .step{min-height:34vh;display:flex;align-items:center;padding:9px 0;
   scroll-snap-align:center}
 .step .body{background:var(--panel);border:1px solid var(--line);
@@ -567,14 +595,19 @@ footer li{margin-bottom:4px;max-width:82ch}
      figure pinned below the fold. */
   .scrolly .sticky,.scrolly.flip .sticky{order:0}
   .scrolly .steps,.scrolly.flip .steps{order:1}
-  .sticky{position:sticky;top:53px;height:52vh;z-index:5;
+  /* Stacked, the title pins above the figure and the two hang together under
+     the bar. The figure gives up the height the title takes, so the block of
+     pinned things stays the size it was and the reading band under it does not
+     move. */
+  .sticky{position:sticky;top:calc(53px + var(--head-h));
+    height:calc(52vh - var(--head-h));z-index:5;
     background:var(--bg);padding:8px 0 4px}
   /* The mode surface is a wide flat shape and a photo is cropped to fill
      whatever box it gets: at 52vh the first drew about 90 px of drum inside
      250 px of canvas, and the second simply took height the text wanted. The
      stages that hold a Plotly figure keep 52vh, because a line plot does use
      it. */
-  .sticky.tight{height:40vh}
+  .sticky.tight{height:calc(40vh - var(--head-h))}
 
   /* The bar tucks away while the reader moves down the page. The sticky
      offsets go with it, or a tucked bar leaves a strip of nothing above the
@@ -582,7 +615,8 @@ footer li{margin-bottom:4px;max-width:82ch}
   .topnav{transition:transform .22s ease}
   .navtuck .topnav{transform:translateY(-100%)}
   .navtuck .filters{top:0}
-  .navtuck .sticky{top:0}
+  .navtuck .sticky{top:var(--head-h)}
+  .navtuck .chapter:has(.scrolly) > .head{top:0}
   /* Tighter again on a phone, because the pinned figure already owns the top
      half of the screen and the text column only gets what is left.
 
@@ -618,7 +652,7 @@ footer li{margin-bottom:4px;max-width:82ch}
 @media print{
   .topnav,.filters,.scrollcue,.progress,.cta{display:none!important}
   body{background:#fff}
-  .sticky{position:static;height:auto}
+  .sticky,.chapter:has(.scrolly) > .head{position:static;height:auto}
   .step{min-height:0;padding:8px 0}
   .step .body,.step.near .body,.step.on .body{opacity:1;transform:none;
     border-color:var(--line);box-shadow:none}

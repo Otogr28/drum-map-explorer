@@ -497,6 +497,7 @@ function showPart(part, push){
   if (part === "poster") Poster.enter();
   if (part === "method") Method.enter();
   if (part === "data")   Data.enter();
+  syncHeads();
   /* The card snap belongs to the two scroll driven parts. Data is a filter
      page: it stays where the reader put it and nothing pulls it anywhere. */
   if (part === "poster" || part === "method"){
@@ -507,6 +508,24 @@ function showPart(part, push){
 }
 
 const SITE = {part:"poster"};
+
+/* ============================================================== head height
+   The chapter title pins under the bar and the figure hangs under the title,
+   so the figure's own offset has to know how tall that title is. It is not one
+   number: an h2 that wraps to two lines is 40 px taller than one that does
+   not, and the wrap depends on the window. Each chapter carries its own
+   measurement as `--head-h`.
+
+   Only chapters that pin a figure are measured. Hidden parts measure zero, so
+   this runs again on every part switch, and on resize because a narrower
+   window rewraps the titles. */
+function syncHeads(){
+  for (const ch of document.querySelectorAll(".chapter")){
+    const head = ch.querySelector(":scope > .head");
+    if (!head || !ch.querySelector(".scrolly") || !ch.offsetParent) continue;
+    ch.style.setProperty("--head-h", Math.round(head.offsetHeight) + "px");
+  }
+}
 
 /* ================================================================ nav tuck
    On a phone the bar is 53 px of an 844 px screen and it is there the whole
@@ -591,6 +610,9 @@ Promise.all(["campaign","strikes","spectra","method"].map(n =>
     window.addEventListener("scroll", () => { updateProgress(); navTuck(); },
                             {passive:true});
     window.addEventListener("resize", () => {
+      /* The titles rewrap immediately, so they are re-measured immediately.
+         The plots wait for the window to settle. */
+      syncHeads();
       clearTimeout(SITE._rt);
       SITE._rt = setTimeout(redrawAll, 180);
     });
