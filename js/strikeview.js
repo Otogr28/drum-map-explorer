@@ -502,18 +502,12 @@ const StrikeView = (() => {
   }
 
   /* --------------------------------------------------------------- driver */
-  function render(d, r, i){
+  function render(d){
     drawWave(d, "svWave", false);
     drawDecay(d, "svDecay", false);
     drawSpec(d, "svSpec", false);
     drawGram(d, "svGram", false);
     drawRadar(d);
-    $("svNote").innerHTML =
-      `Display branch: <b>${(d.steps_d || []).join(" &rarr; ") || "raw"}</b>. `+
-      `Every number comes from the despike and high pass branch only, never `+
-      `from the gated one. These panels are drawn from series drumlab computed, `+
-      `not recomputed here.`;
-    $("svNote").classList.remove("hidden");
   }
 
   /* The caption under the player. Five sentences of small print is a caption
@@ -541,7 +535,6 @@ const StrikeView = (() => {
     if (!r) return;
     watchScope();
     $("svPanels").classList.add("hidden");
-    $("svNote").classList.add("hidden");
     $("svBoot").classList.remove("hidden");
     $("svBoot").textContent = "loading this strike…";
     const done = (d) => {
@@ -562,7 +555,7 @@ const StrikeView = (() => {
       if (tag) tag.innerHTML = d.clip.clipped
         ? `<span class="railed">railed ${d.clip.rail_ms.toFixed(1)} ms</span>`
         : `${(d.n/d.fs*1000).toFixed(0)} ms`;
-      render(d, r, i);
+      render(d);
     };
     pending = i;
     if (cache.has(i)){ done(cache.get(i)); return; }
@@ -585,7 +578,6 @@ const StrikeView = (() => {
     $("exPlayLede").innerHTML = "";
     $("exPlayNote").innerHTML = "";
     $("svPanels").classList.add("hidden");
-    $("svNote").classList.add("hidden");
     $("svBoot").classList.add("hidden");
   }
 
