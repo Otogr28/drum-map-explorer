@@ -143,9 +143,9 @@ each with a line on what it gave this campaign.
   a 12 Hz half band). The poster figure uses a masked rank-1 factorisation,
   which additionally glues the three sensor stations onto one scale. The two
   agree in shape, not in absolute scale.
-- The **conclusion is a draft.** The printed poster's conclusion and future
-  work boxes are deliberately empty and belong to the operator. What the site
-  shows is marked as his own note, not as a finished claim.
+- The **conclusion and the future work are the printed poster's own**, carried
+  here word for word. They are the operator's copy. If the sheet changes,
+  change this to match instead of writing a second version of it.
 
 ## What is in this repo
 
