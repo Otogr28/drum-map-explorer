@@ -155,12 +155,13 @@ img{max-width:100%}
    cards passing under it, and at 62ch it would have hidden only the left half
    of a `flip` chapter.
 
-   The offset clears the bar by a margin rather than sitting on it, and the
-   padding under the title keeps the card sliding beneath it off the lettering.
-   Pinned text with a bar touching it above and a card touching it below reads
-   as one crowded block. */
-.chapter:has(.scrolly) > .head{position:sticky;top:66px;z-index:6;
-  max-width:none;background:var(--bg);padding-bottom:20px;margin-bottom:1px}
+   Air above the lettering and below it, because pinned text with a bar
+   touching it above and a card touching it below reads as one crowded block.
+   Both are PADDING, and the offset stays at 53 px, two under the 55 px bar.
+   Moving the offset down instead leaves a transparent strip between the bar
+   and the box, and the cards scrolling past show through it. */
+.chapter:has(.scrolly) > .head{position:sticky;top:53px;z-index:6;
+  max-width:none;background:var(--bg);padding:13px 0 20px;margin-bottom:1px}
 .chapter:has(.scrolly) > .head > *{max-width:62ch}
 /* A card sliding under the title gets cut in half by the edge of the box. The
    fade takes the cut off. It is background over background, so at rest, with
@@ -195,7 +196,7 @@ canvas{max-width:100%}
    because an h2 that wraps to two lines is 40 px taller than one that does not
    and no CSS length knows which is which. The height keeps the bottom of the
    figure off the bottom of the screen on a short window too. */
-.sticky{position:sticky;top:calc(86px + var(--head-h));
+.sticky{position:sticky;top:calc(74px + var(--head-h));
   height:min(calc(100vh - 132px - var(--head-h)),660px);display:flex;
   flex-direction:column;justify-content:center}
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -603,9 +604,9 @@ footer li{margin-bottom:4px;max-width:82ch}
   /* Stacked, the title pins above the figure and the two hang together under
      the bar. The figure gives up the height the title takes, so the block of
      pinned things stays the size it was and the reading band under it does not
-     move. The title sits right under the bar here and not 13 px below it: a
-     phone has no room to spend on a gap, and the bar tucks away anyway. */
-  .chapter:has(.scrolly) > .head{top:53px}
+     move. The title loses the air above the lettering here: a phone has no
+     room to spend on it, and the bar tucks away anyway. */
+  .chapter:has(.scrolly) > .head{padding-top:0}
   .sticky{position:sticky;top:calc(53px + var(--head-h));
     height:calc(52vh - var(--head-h));z-index:5;
     background:var(--bg);padding:8px 0 4px}
